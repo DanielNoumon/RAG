@@ -1,6 +1,6 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from config import Config
+from core.config import Config
 
 
 class EmbeddingManager:

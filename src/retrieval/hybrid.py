@@ -1,18 +1,11 @@
 """Hybrid retrieval combining vector search and BM25 keyword search."""
-import os
-import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 
-# Core modules
-sys.path.append(
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "core")
-)
-
-from bm25 import BM25Retriever
-from embedding_manager import EmbeddingManager
-from hnsw_storage import HNSWStorageManager
-from json_storage import JSONStorageManager
+from retrieval.bm25 import BM25Retriever
+from core.embedding_manager import EmbeddingManager
+from core.hnsw_storage import HNSWStorageManager
+from core.json_storage import JSONStorageManager
 
 
 class HybridRetriever:

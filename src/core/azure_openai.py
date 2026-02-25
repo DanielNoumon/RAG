@@ -1,6 +1,6 @@
 import openai
-from config import Config
-from prompts import RAG_PROMPT
+from core.config import Config
+from core.prompts import RAG_PROMPT
 
 
 class AzureOpenAIClient:
