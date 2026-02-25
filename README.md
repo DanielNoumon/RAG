@@ -1,6 +1,6 @@
 # Document RAG Pipeline
 
-A Retrieval-Augmented Generation (RAG) pipeline for querying a reference document using Azure OpenAI and vector search.
+A Retrieval-Augmented Generation (RAG) pipeline for querying a reference document using Azure OpenAI, vector search, BM25 and a reranker. Also an open-source embedder and PostgreSQL connection.
 
 ## Project Structure
 
