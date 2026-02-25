@@ -14,6 +14,10 @@ data/chunks/*.json
 data/embeddings/*.json
 data/test_results/*.json
 data/documents/
+!data/documents/.gitkeep
+!data/chunks/.gitkeep
+!data/embeddings/.gitkeep
+!data/test_results/.gitkeep
 
 # OS
 .DS_Store
