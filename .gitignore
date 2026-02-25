@@ -1,0 +1,26 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+.mypy_cache/
+
+# Data (keep structure, ignore generated files)
+data/chunks/*.json
+data/embeddings/*.json
+data/test_results/*.json
+data/documents/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# HNSW index binary
+*.bin
+
+# Deprecated
+deprecated/
