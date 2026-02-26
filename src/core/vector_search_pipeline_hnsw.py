@@ -1,18 +1,20 @@
+import numpy as np
 from typing import List, Dict, Any, Optional
-from embedding_manager import EmbeddingManager
-from json_storage import JSONStorageManager
-from azure_openai import AzureOpenAIClient
+from core.embedding_manager import EmbeddingManager
+from core.hnsw_storage import HNSWStorageManager
+from core.azure_openai import AzureOpenAIClient
 
 
-class RAGPipelineKNN:
-    def __init__(self, storage_file: str = "embeddings.json"):
+class VectorSearchPipelineHNSW:
+    """RAG Pipeline using HNSW for efficient vector search"""
+    
+    def __init__(self, storage_file: str = "embeddings_hnsw.json"):
         self.embedding_manager = EmbeddingManager()
-        self.storage_manager = JSONStorageManager(storage_file)
+        self.storage_manager = HNSWStorageManager(storage_file)
         self.openai_client = AzureOpenAIClient()
 
-    def query(self, question: str, top_k: int = 5, similarity_threshold: float = 0.0,
-              max_tokens: int = 1000, temperature: float = 0.7) -> Dict[str, Any]:
-        """Main RAG query method"""
+    def query(self, question: str, top_k: int = 5, similarity_threshold: float = 0.0) -> Dict[str, Any]:
+        """Main RAG query method using HNSW"""
         if not question.strip():
             raise ValueError("Question cannot be empty")
 
@@ -45,7 +47,7 @@ class RAGPipelineKNN:
         }
 
     def add_documents(self, documents: List[Dict[str, Any]],
-                     chunk_size: int = 500, overlap: int = 50) -> List[List[int]]:
+                     chunk_size: int = 500, overlap: int = 50) -> List[int]:
         """Add documents to the RAG system"""
         from document_processor_v2 import DocumentProcessor
         
@@ -58,23 +60,8 @@ class RAGPipelineKNN:
         query_embedding = self.embedding_manager.embed_text(query)
         return self.storage_manager.search_similar(query_embedding, top_k, similarity_threshold)
 
-    def get_document_by_id(self, doc_id: int) -> Optional[Dict[str, Any]]:
-        """Retrieve a specific document by ID"""
-        return self.storage_manager.get_document_by_id(doc_id)
-
-    def get_all_documents(self) -> List[Dict[str, Any]]:
-        """Get all documents in storage"""
-        return self.storage_manager.get_all_documents()
-
-    def clear_all_documents(self):
-        """Clear all documents from storage"""
-        self.storage_manager.clear_all_documents()
-
     def get_stats(self) -> Dict[str, Any]:
-        """Get storage statistics"""
-        documents = self.storage_manager.get_all_documents()
-        return {
-            "total_documents": len(documents),
-            "storage_file": self.storage_manager.storage_file,
-            "embedding_dimension": self.embedding_manager.get_embedding_dimension()
-        }
+        """Get pipeline statistics"""
+        stats = self.storage_manager.get_stats()
+        stats["embedding_dimension"] = self.embedding_manager.get_embedding_dimension()
+        return stats

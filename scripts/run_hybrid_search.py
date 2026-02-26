@@ -1,19 +1,13 @@
 """Test hybrid retrieval (vector + BM25) on chunked documents."""
 import json
 import os
-import sys
 import numpy as np
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = PROJECT_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from retrieval.hybrid import HybridRetriever  # noqa: E402
-from core.azure_openai import AzureOpenAIClient  # noqa: E402
+from retrieval.hybrid import HybridRetriever
+from core.azure_openai import AzureOpenAIClient
 
 
 def convert_numpy_types(obj):
@@ -213,7 +207,7 @@ def main(config):
         all_results.append(result_data)
 
     # Save results
-    results_dir = PROJECT_ROOT / "data" / "test_results"
+    results_dir = Path("data/test_results")
     os.makedirs(results_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = results_dir / f"hybrid_results_{timestamp}.json"
@@ -228,28 +222,33 @@ def main(config):
         "results": all_results,
     }
 
-    print(f"\nAttempting to save results to: {output_path}")
-    print(f"Current working directory: {os.getcwd()}")
-    print(f"Absolute path: {os.path.abspath(output_path)}")
+    save_verbose = config.get("verbose_save", False)
+    if save_verbose:
+        print(f"\nAttempting to save results to: {output_path}")
+        print(f"Current working directory: {os.getcwd()}")
+        print(f"Absolute path: {os.path.abspath(output_path)}")
     
     try:
         # Convert data first
         converted_output = convert_numpy_types(output)
-        print("Data conversion successful")
+        if save_verbose:
+            print("Data conversion successful")
         
         # Test JSON serialization
         json_test = json.dumps(converted_output, indent=2, ensure_ascii=False)
-        print("JSON serialization successful, length:", len(json_test))
+        if save_verbose:
+            print("JSON serialization successful, length:", len(json_test))
         
         # Save to file
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(json_test)
         
-        print(f"Results saved to {output_path}")
-        print(f"File exists after save: {os.path.exists(output_path)}")
+        if save_verbose:
+            print(f"Results saved to {output_path}")
+            print(f"File exists after save: {os.path.exists(output_path)}")
         
         # Verify file content
-        if os.path.exists(output_path):
+        if save_verbose and os.path.exists(output_path):
             with open(output_path, "r", encoding="utf-8") as f:
                 content = f.read()
                 print(f"File size: {len(content)} characters")
@@ -264,7 +263,8 @@ def main(config):
             fallback_path = output_path.with_name(output_path.stem + "_fallback.json")
             with open(fallback_path, "w", encoding="utf-8") as f:
                 json.dump(output, f, indent=2, ensure_ascii=False, default=str)
-            print("Fallback file saved")
+            if save_verbose:
+                print("Fallback file saved")
         except Exception as e2:
             print(f"Fallback also failed: {e2}")
 
@@ -273,8 +273,8 @@ if __name__ == "__main__":
     # ===== CONFIGURATION =====
     CONFIG = {
         # Data files
-        "chunks_file": str(PROJECT_ROOT / "data" / "chunks" / "document_handbook_mei_2024_chunks.json"),
-        "embeddings_file": str(PROJECT_ROOT / "data" / "embeddings" / "embeddings_hnsw.json"),
+        "chunks_file": "data/chunks/.........json",
+        "embeddings_file": "data/embeddings/embeddings_hnsw.json",
         "vector_backend": "hnsw",  # "hnsw" = fast approximate search, "knn" = exact search (slower)
 
         # Fusion strategy
@@ -302,12 +302,13 @@ if __name__ == "__main__":
         # Output
         "show_chunks": True,
         "generate_answer": True,
+        "verbose_save": False,
 
         # Test Questions
         "questions": [
-            "Hoeveel vakantiedagen staan er in het document en hoe moet je deze aanvragen?",
-            "Wat zijn de regels voor remote werken volgens het document?",
-            "Welke huisregels en kledingnormen beschrijft het document?"
+            "Hoeveel vakantiedagen krijg ik per jaar?",
+            "Hoelang mag ik remote werken volgens het document?",
+            "Welke kledingnormen moet ik hanteren?"
         ],
     }
     # ========================

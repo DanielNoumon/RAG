@@ -52,6 +52,11 @@ A Retrieval-Augmented Generation (RAG) pipeline for querying a reference documen
    pip install -r requirements.txt
    ```
 
+3. Install the package in editable mode so CLI scripts can import `core`/`retrieval` directly:
+   ```
+   pip install -e .
+   ```
+
 3. Configure `.env` (copy from `.env.example`):
    ```
    AZURE_OPENAI_API_KEY=your_key
@@ -70,6 +75,8 @@ python scripts/chunker.py           # Chunk source document (delegates to src/pr
 python scripts/run_hybrid_test.py   # Run retrieval + optional reranker answer generation
 python scripts/run_rag_test.py      # Run RAG answer generation pipeline
 ```
+
+> **Note:** The CLI scripts now expect the repository to be installed (editable install recommended above) so that `core.*` and `retrieval.*` import paths resolve without modifying `sys.path` manually.
 
 ### Configuration
 

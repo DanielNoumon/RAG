@@ -1,27 +1,24 @@
 """Rebuild all embeddings with the current embedding model."""
 import json
-import os
-import sys
-from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = PROJECT_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+import numpy as np
 
-from core.rag_pipeline_knn import RAGPipelineKNN
+from core.vector_search_pipeline_knn import VectorSearchPipelineKNN
 from core.hnsw_storage import HNSWStorageManager
 from core.embedding_manager import EmbeddingManager
 from core.config import Config
-import numpy as np
 
 
-def rebuild():
+def rebuild(
+    chunks_file: str,
+    knn_storage_path: str,
+    hnsw_storage_path: str,
+):
+
     config = Config()
     print(f"Using embedding model: {config.EMBEDDING_MODEL}")
 
     # Load chunks
-    chunks_file = "data/chunks/document_handbook_mei_2024_chunks.json"
     with open(chunks_file, 'r', encoding='utf-8') as f:
         chunks_data = json.load(f)
 
@@ -34,7 +31,7 @@ def rebuild():
 
     # Step 1: Rebuild KNN storage (embeddings_knn.json)
     print("\n--- Building KNN storage ---")
-    rag = RAGPipelineKNN(storage_file="data/embeddings/embeddings_knn.json")
+    rag = VectorSearchPipelineKNN(storage_file=knn_storage_path)
     for chunk in chunks:
         embedding = embedding_mgr.embed_text(chunk["content"])
         rag.storage_manager.insert_document(
@@ -47,7 +44,7 @@ def rebuild():
     # Step 2: Rebuild HNSW storage (embeddings_hnsw.json)
     print("\n--- Building HNSW storage ---")
     dim = embedding_mgr.get_embedding_dimension()
-    hnsw = HNSWStorageManager("data/embeddings/embeddings_hnsw.json", dim=dim)
+    hnsw = HNSWStorageManager(hnsw_storage_path, dim=dim)
     for chunk in chunks:
         embedding = embedding_mgr.embed_text(chunk["content"])
         hnsw.add_document(
@@ -61,4 +58,16 @@ def rebuild():
 
 
 if __name__ == "__main__":
-    rebuild()
+    # ===== CONFIGURATION =====
+    CONFIG = {
+        "chunks_file": "data/chunks/..........json",
+        "knn_storage": "data/embeddings/embeddings_knn.json",
+        "hnsw_storage": "data/embeddings/embeddings_hnsw.json",
+    }
+    # =========================
+
+    rebuild(
+        CONFIG["chunks_file"],
+        CONFIG["knn_storage"],
+        CONFIG["hnsw_storage"],
+    )

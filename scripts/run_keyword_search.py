@@ -1,17 +1,10 @@
 """Test BM25 retrieval on chunked documents."""
 import json
 import os
-import sys
 from datetime import datetime
-from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = PROJECT_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from retrieval.bm25 import BM25Retriever  # noqa: E402
-from core.azure_openai import AzureOpenAIClient  # noqa: E402
+from retrieval.bm25 import BM25Retriever
+from core.azure_openai import AzureOpenAIClient
 
 
 def main(config):
@@ -46,7 +39,11 @@ def main(config):
     print(f"Top K: {config['top_k']}")
     print("-" * 60)
 
-    openai_client = AzureOpenAIClient() if config.get("generate_answer", True) else None
+    openai_client = (
+        AzureOpenAIClient()
+        if config.get("generate_answer", True)
+        else None
+    )
 
     all_results = []
     for i, question in enumerate(config["questions"], 1):
@@ -114,12 +111,12 @@ if __name__ == "__main__":
     # ===== CONFIGURATION =====
     CONFIG = {
         # Chunks file (produced by chunker.py)
-        "chunks_file": os.path.join(PROJECT_ROOT, "data/chunks/document_handbook_mei_2024_chunks.json"),
+        "chunks_file": "data/chunks/..........json",
 
         # BM25 Parameters
         "k1": 1.5,     # Term saturation (higher = more weight to term frequency)
         "b": 0.75,     # Length normalization (0 = no normalization, 1 = full)
-        "top_k": 20,           # Retrieve 20 candidates
+        "top_k": 20,
 
         # Reranker (LLM-based)
         "rerank": True,
@@ -133,9 +130,9 @@ if __name__ == "__main__":
 
         # Test Questions
         "questions": [
-            "Hoeveel vakantiedagen krijg je bij het document en hoe moet je deze aanvragen?",
-            "Wat zijn de regels voor remote werken bij het document?",
-            "Wat zijn de huisregels en kledingnormen bij het document?"
+            "Hoeveel vakantiedagen krijg ik per jaar?",
+            "Hoelang mag ik remote werken volgens het document?",
+            "Welke kledingnormen moet ik hanteren?"
         ],
     }
     # ========================

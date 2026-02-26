@@ -1,13 +1,6 @@
 import json
 import os
-import sys
 from datetime import datetime
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = PROJECT_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
 
 
 def main(config):
@@ -29,12 +22,12 @@ def main(config):
     # Choose RAG pipeline based on config
     model = config.get("embedding_model")
     if config["search_method"] == "hnsw":
-        from core.rag_pipeline_hnsw import RAGPipelineHNSW
-        rag = RAGPipelineHNSW(storage_file=config["storage_file"])
+        from core.vector_search_pipeline_hnsw import VectorSearchPipelineHNSW
+        rag = VectorSearchPipelineHNSW(storage_file=config["storage_file"])
         search_name = "HNSW (Approximate)"
     elif config["search_method"] == "exhaustive_knn":
-        from core.rag_pipeline_knn import RAGPipelineKNN
-        rag = RAGPipelineKNN(storage_file="data/embeddings/embeddings_knn.json")
+        from core.vector_search_pipeline_knn import VectorSearchPipelineKNN
+        rag = VectorSearchPipelineKNN(storage_file="data/embeddings/embeddings_knn.json")
         search_name = "Exhaustive KNN (Exact)"
     else:
         raise ValueError(f"Unknown search_method: {config['search_method']}. Use 'hnsw' or 'exhaustive_knn'.")
@@ -149,16 +142,16 @@ if __name__ == "__main__":
         # "similarity_threshold": 0.3,
 
         # Reranker (LLM-based)
-        "rerank": True,
+        "rerank": False,
         "rerank_top_n": 5,     # Keep top 5 after reranking
         "rerank_model": "gpt-5",  # Azure OpenAI deployment name
         "rerank_batch_size": 5,  # Chunks per batch for parallel processing
 
         # Test Questions
         "questions": [
-            "Hoeveel vakantiedagen staan er in het document en hoe moet je deze aanvragen?",
-            "Wat zijn de regels voor remote werken volgens het document?",
-            "Welke huisregels en kledingnormen beschrijft het document?"
+            "Hoeveel vakantiedagen krijg ik per jaar?",
+            "Hoelang mag ik remote werken volgens het document?",
+            "Welke kledingnormen moet ik hanteren?"
         ]
     }
     # ========================

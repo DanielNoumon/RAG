@@ -118,7 +118,7 @@ if __name__ == "__main__":
     # ===== CONFIGURATION =====
     CONFIG = {
         # Source file (.pdf or .txt)
-        "file_path": "data/documents/document_handbook_mei_2024.pdf",
+        "file_path": "data/documents/..........pdf",
 
         # Chunking Parameters
         "chunk_size": 500,  # Number of words per chunk

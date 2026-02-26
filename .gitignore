@@ -26,5 +26,9 @@ Thumbs.db
 # HNSW index binary
 *.bin
 
+# Build artifacts
+build/
+src/document_rag.egg-info/
+
 # Deprecated
 deprecated/
