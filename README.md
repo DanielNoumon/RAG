@@ -6,14 +6,14 @@ A Retrieval-Augmented Generation (RAG) pipeline for querying a reference documen
 
 ```
 ├── scripts/                    # Thin CLI entry points that bootstrap src modules
-│   ├── run_rag_test.py         # Drive the RAG query flow (imports src/core & src/retrieval)
-│   ├── run_bm25_test.py        # Run BM25-only retrieval tests via src/retrieval
-│   ├── run_hybrid_test.py      # Run hybrid (vector + BM25) retrieval tests via src/retrieval
+│   ├── run_vector_search.py     # Vector search test (HNSW / exhaustive KNN)
+│   ├── run_keyword_search.py    # BM25-only keyword retrieval test
+│   ├── run_hybrid_search.py     # Hybrid (vector + BM25) test + optional reranker
 │   └── debug_json.py           # Simple JSON serialization checks (moved to src/utils)
 ├── src/                        # Production-ready packages imported by scripts
 │   ├── core/                   # Core RAG orchestration (embedding, storage, prompts, config)
-│   │   ├── rag_pipeline_hnsw.py
-│   │   ├── rag_pipeline_knn.py
+│   │   ├── vector_search_pipeline_hnsw.py
+│   │   ├── vector_search_pipeline_knn.py
 │   │   ├── hnsw_storage.py
 │   │   ├── json_storage.py
 │   │   ├── embedding_manager.py
@@ -47,17 +47,17 @@ A Retrieval-Augmented Generation (RAG) pipeline for querying a reference documen
    conda activate test_rag
    ```
 
-2. Install dependencies:
+2. Install dependencies (optional when you install editable mode, but useful if you need the packages without the editable install):
    ```
    pip install -r requirements.txt
    ```
 
-3. Install the package in editable mode so CLI scripts can import `core`/`retrieval` directly:
+3. Install the package in editable mode so CLI scripts can import `core`/`retrieval` directly; this is the only required step for dependency setup as it installs everything listed above:
    ```
    pip install -e .
    ```
 
-3. Configure `.env` (copy from `.env.example`):
+4. Configure `.env` (copy from `.env.example`):
    ```
    AZURE_OPENAI_API_KEY=your_key
    AZURE_OPENAI_ENDPOINT=your_endpoint
@@ -72,8 +72,8 @@ A Retrieval-Augmented Generation (RAG) pipeline for querying a reference documen
 
 ```bash
 python scripts/chunker.py           # Chunk source document (delegates to src/preprocessing.chunker)
-python scripts/run_hybrid_test.py   # Run retrieval + optional reranker answer generation
-python scripts/run_rag_test.py      # Run RAG answer generation pipeline
+python scripts/run_hybrid_search.py # Run hybrid retrieval + reranker test flows
+python scripts/run_vector_search.py # Run vector-only retrieval test (HNSW/knn)
 ```
 
 > **Note:** The CLI scripts now expect the repository to be installed (editable install recommended above) so that `core.*` and `retrieval.*` import paths resolve without modifying `sys.path` manually.
@@ -87,8 +87,7 @@ Each script has a `CONFIG` section under `if __name__ == "__main__"` where param
 - `chunk_size` — Words per chunk (default: 500)
 - `overlap` — Overlapping words between chunks (default: 100)
 
-**run_rag_test.py**
-- `search_method` — `"hnsw"` (approximate, fast) or `"exhaustive_knn"` (exact)
+**run_vector_search.py**
 - `storage_file` — Path to embeddings file
 - `embedding_model` — Sentence transformer model name
 - `top_k` — Number of chunks to retrieve per query
