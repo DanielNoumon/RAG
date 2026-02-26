@@ -30,5 +30,8 @@ Thumbs.db
 build/
 src/document_rag.egg-info/
 
+# IDE settings
+.vscode/
+
 # Deprecated
 deprecated/
