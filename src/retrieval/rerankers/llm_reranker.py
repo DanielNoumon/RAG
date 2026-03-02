@@ -56,7 +56,7 @@ class Reranker:
 
 Vraag: "{query}"
 
-Tekst: "{content[:500]}..."
+Tekst: "{content}"
 
 Antwoord alleen met een JSON object met een "relevance_score" veld:
 {{"relevance_score": 0.85}}"""
@@ -251,10 +251,11 @@ if __name__ == "__main__":
     print("=== Reranker Demo ===")
     
     # Configuration
+    MODEL_NAME = None  # Azure OpenAI deployment name (None = use config default)
     VERBOSE_LOGGING = True  # Set to False to disable progress logging
     
     # Create reranker instance
-    reranker = Reranker()
+    reranker = Reranker(model_name=MODEL_NAME)
     
     # Sample query
     query = "Hoeveel vakantiedagen staan er in het document en hoe moet je deze aanvragen?"
