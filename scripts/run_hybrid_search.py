@@ -31,14 +31,32 @@ def main(config):
     # Initialize reranker if enabled
     reranker = None
     if config.get("rerank", False):
-        from retrieval.reranker import Reranker
-        reranker = Reranker(
-            model_name=config.get(
-                "rerank_model",
-                "cross-encoder/ms-marco-MiniLM-L-6-v2",
-            ),
-            top_n=config.get("rerank_top_n", 5),
-        )
+        reranker_type = config.get("reranker_type", "llm").lower()
+        
+        if reranker_type == "cross_encoder":
+            from retrieval.rerankers.cross_encoder_reranker import CrossEncoderReranker
+            reranker = CrossEncoderReranker(
+                model_name=config.get("rerank_model", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+                top_n=config.get("rerank_top_n", 5),
+            )
+        elif reranker_type == "colbert":
+            from retrieval.rerankers.colbert_reranker import ColBERTReranker
+            reranker = ColBERTReranker(
+                model_name=config.get("rerank_model", "colbert-ir/colbertv2.0"),
+                top_n=config.get("rerank_top_n", 5),
+            )
+        elif reranker_type == "llm":
+            from retrieval.rerankers.llm_reranker import Reranker
+            reranker = Reranker(
+                model_name=config.get("rerank_model", None),
+                top_n=config.get("rerank_top_n", 5),
+                include_reasoning=config.get("rerank_include_reasoning", False),
+            )
+        else:
+            raise ValueError(
+                f"Unknown reranker type: {reranker_type}. "
+                f"Choose from: 'llm', 'cross_encoder', 'colbert'"
+            )
 
     retriever = HybridRetriever(
         chunks_path=config["chunks_file"],
@@ -293,11 +311,13 @@ if __name__ == "__main__":
         # (initial) Retrieval
         "top_k": 20,           # Retrieve 20 candidates -> use lower amount without reranker
 
-        # Final Reranker filter (LLM-based)
+        # Final Reranker filter
         "rerank": True,
+        "reranker_type": "cross_encoder",  # Options: "llm", "cross_encoder", "colbert"
         "rerank_top_n": 5,     # Keep top 5 after reranking
-        "rerank_model": "gpt-5",  # Azure OpenAI deployment name
-        "rerank_batch_size": 5,  # Chunks per batch for parallel processing
+        "rerank_model": None,  # Model name (None = use default for reranker type)
+        "rerank_include_reasoning": False,  # Only for LLM reranker: include reasoning (slower)
+        "rerank_batch_size": 5,  # Chunks per batch for parallel processing (LLM only)
 
         # Output
         "show_chunks": True,
