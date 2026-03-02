@@ -1,0 +1,309 @@
+{
+  "metadata": {
+    "timestamp": "2026-03-02T18:33:11.250464",
+    "query": "Hoeveel vakantiedagen krijg ik volgens het document?",
+    "total_chunks_processed": 20
+  },
+  "rerankers": {
+    "cross_encoder": {
+      "model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+      "latency_seconds": 2.5719010829925537,
+      "latency_formatted": "2.57s",
+      "total_chunks_ranked": 20,
+      "chunks": [
+        {
+          "rank": 1,
+          "chunk_id": 4,
+          "score": -0.13679510354995728,
+          "content": "De 25 vakantiedagen bestaan uit 20 wettelijke en 5 bovenwettelijke dagen.",
+          "source": "Document_4.pdf"
+        },
+        {
+          "rank": 2,
+          "chunk_id": 2,
+          "score": -1.913557767868042,
+          "content": "Vakantiedagen moeten minimaal 2 maanden van tevoren worden aangevraagd.",
+          "source": "Document_2.pdf"
+        },
+        {
+          "rank": 3,
+          "chunk_id": 3,
+          "score": -4.102177619934082,
+          "content": "Bij parttime werk worden vakantiedagen naar rato berekend.",
+          "source": "Document_3.pdf"
+        },
+        {
+          "rank": 4,
+          "chunk_id": 15,
+          "score": -4.131458759307861,
+          "content": "Nieuwe medewerkers krijgen een inwerkprogramma van 2 weken.",
+          "source": "Document_15.pdf"
+        },
+        {
+          "rank": 5,
+          "chunk_id": 1,
+          "score": -5.147496223449707,
+          "content": "Bij een fulltime dienstverband heb je recht op 25 vakantiedagen per jaar.",
+          "source": "Document_1.pdf"
+        },
+        {
+          "rank": 6,
+          "chunk_id": 5,
+          "score": -6.039065361022949,
+          "content": "Vakantieaanvragen gaan via de HR portal en moeten door de manager worden goedgekeurd.",
+          "source": "Document_5.pdf"
+        },
+        {
+          "rank": 7,
+          "chunk_id": 17,
+          "score": -10.292107582092285,
+          "content": "Pensioenopbouw is geregeld via het bedrijfspensioenfonds.",
+          "source": "Document_17.pdf"
+        },
+        {
+          "rank": 8,
+          "chunk_id": 11,
+          "score": -10.313154220581055,
+          "content": "Het kantoor is geopend van 8:30 tot 17:30.",
+          "source": "Document_11.pdf"
+        },
+        {
+          "rank": 9,
+          "chunk_id": 12,
+          "score": -10.68453311920166,
+          "content": "Schoonmaak vindt plaats na werktijd.",
+          "source": "Document_12.pdf"
+        },
+        {
+          "rank": 10,
+          "chunk_id": 10,
+          "score": -10.795979499816895,
+          "content": "Lunch wordt voorzien in de bedrijfskantine.",
+          "source": "Document_10.pdf"
+        },
+        {
+          "rank": 11,
+          "chunk_id": 20,
+          "score": -10.8291015625,
+          "content": "Er wordt jaarlijks een personeelsfeest georganiseerd.",
+          "source": "Document_20.pdf"
+        },
+        {
+          "rank": 12,
+          "chunk_id": 19,
+          "score": -10.854103088378906,
+          "content": "Ziekteverlof moet gemeld worden bij 8:30 uur.",
+          "source": "Document_19.pdf"
+        },
+        {
+          "rank": 13,
+          "chunk_id": 16,
+          "score": -11.008995056152344,
+          "content": "Salaris wordt maandelijks uitbetaald op de 25e.",
+          "source": "Document_16.pdf"
+        },
+        {
+          "rank": 14,
+          "chunk_id": 8,
+          "score": -11.11083698272705,
+          "content": "Er wordt een flexibele werktijdregeling gehanteerd.",
+          "source": "Document_8.pdf"
+        },
+        {
+          "rank": 15,
+          "chunk_id": 18,
+          "score": -11.168261528015137,
+          "content": "Reiskosten worden vergoed op basis van woon-werkafstand.",
+          "source": "Document_18.pdf"
+        },
+        {
+          "rank": 16,
+          "chunk_id": 14,
+          "score": -11.27490234375,
+          "content": "Brandveiligheidstraining is verplicht voor alle medewerkers.",
+          "source": "Document_14.pdf"
+        },
+        {
+          "rank": 17,
+          "chunk_id": 9,
+          "score": -11.302661895751953,
+          "content": "Parkeren is mogelijk in de parkeergarage onder het kantoor.",
+          "source": "Document_9.pdf"
+        },
+        {
+          "rank": 18,
+          "chunk_id": 6,
+          "score": -11.335618019104004,
+          "content": "De dresscode wordt beschreven als smart casual.",
+          "source": "Document_6.pdf"
+        },
+        {
+          "rank": 19,
+          "chunk_id": 13,
+          "score": -11.390243530273438,
+          "content": "De IT helpdesk is bereikbaar via intern telefoonnummer 5555.",
+          "source": "Document_13.pdf"
+        },
+        {
+          "rank": 20,
+          "chunk_id": 7,
+          "score": -11.402996063232422,
+          "content": "Remote werken is mogelijk na goedkeuring van je manager.",
+          "source": "Document_7.pdf"
+        }
+      ]
+    },
+    "colbert": {
+      "model": "colbert-ir/colbertv2.0",
+      "latency_seconds": 4.410521507263184,
+      "latency_formatted": "4.41s",
+      "total_chunks_ranked": 20,
+      "chunks": [
+        {
+          "rank": 1,
+          "chunk_id": 4,
+          "score": 1766.6072998046875,
+          "content": "De 25 vakantiedagen bestaan uit 20 wettelijke en 5 bovenwettelijke dagen.",
+          "source": "Document_4.pdf"
+        },
+        {
+          "rank": 2,
+          "chunk_id": 15,
+          "score": 1734.6953125,
+          "content": "Nieuwe medewerkers krijgen een inwerkprogramma van 2 weken.",
+          "source": "Document_15.pdf"
+        },
+        {
+          "rank": 3,
+          "chunk_id": 1,
+          "score": 1690.5653076171875,
+          "content": "Bij een fulltime dienstverband heb je recht op 25 vakantiedagen per jaar.",
+          "source": "Document_1.pdf"
+        },
+        {
+          "rank": 4,
+          "chunk_id": 2,
+          "score": 1676.3758544921875,
+          "content": "Vakantiedagen moeten minimaal 2 maanden van tevoren worden aangevraagd.",
+          "source": "Document_2.pdf"
+        },
+        {
+          "rank": 5,
+          "chunk_id": 3,
+          "score": 1635.3687744140625,
+          "content": "Bij parttime werk worden vakantiedagen naar rato berekend.",
+          "source": "Document_3.pdf"
+        },
+        {
+          "rank": 6,
+          "chunk_id": 10,
+          "score": 1622.9664306640625,
+          "content": "Lunch wordt voorzien in de bedrijfskantine.",
+          "source": "Document_10.pdf"
+        },
+        {
+          "rank": 7,
+          "chunk_id": 17,
+          "score": 1604.392578125,
+          "content": "Pensioenopbouw is geregeld via het bedrijfspensioenfonds.",
+          "source": "Document_17.pdf"
+        },
+        {
+          "rank": 8,
+          "chunk_id": 8,
+          "score": 1551.435546875,
+          "content": "Er wordt een flexibele werktijdregeling gehanteerd.",
+          "source": "Document_8.pdf"
+        },
+        {
+          "rank": 9,
+          "chunk_id": 9,
+          "score": 1545.992919921875,
+          "content": "Parkeren is mogelijk in de parkeergarage onder het kantoor.",
+          "source": "Document_9.pdf"
+        },
+        {
+          "rank": 10,
+          "chunk_id": 20,
+          "score": 1540.4149169921875,
+          "content": "Er wordt jaarlijks een personeelsfeest georganiseerd.",
+          "source": "Document_20.pdf"
+        },
+        {
+          "rank": 11,
+          "chunk_id": 18,
+          "score": 1539.33544921875,
+          "content": "Reiskosten worden vergoed op basis van woon-werkafstand.",
+          "source": "Document_18.pdf"
+        },
+        {
+          "rank": 12,
+          "chunk_id": 5,
+          "score": 1533.1937255859375,
+          "content": "Vakantieaanvragen gaan via de HR portal en moeten door de manager worden goedgekeurd.",
+          "source": "Document_5.pdf"
+        },
+        {
+          "rank": 13,
+          "chunk_id": 16,
+          "score": 1505.5283203125,
+          "content": "Salaris wordt maandelijks uitbetaald op de 25e.",
+          "source": "Document_16.pdf"
+        },
+        {
+          "rank": 14,
+          "chunk_id": 12,
+          "score": 1496.24365234375,
+          "content": "Schoonmaak vindt plaats na werktijd.",
+          "source": "Document_12.pdf"
+        },
+        {
+          "rank": 15,
+          "chunk_id": 7,
+          "score": 1469.953125,
+          "content": "Remote werken is mogelijk na goedkeuring van je manager.",
+          "source": "Document_7.pdf"
+        },
+        {
+          "rank": 16,
+          "chunk_id": 14,
+          "score": 1442.392578125,
+          "content": "Brandveiligheidstraining is verplicht voor alle medewerkers.",
+          "source": "Document_14.pdf"
+        },
+        {
+          "rank": 17,
+          "chunk_id": 19,
+          "score": 1407.9171142578125,
+          "content": "Ziekteverlof moet gemeld worden bij 8:30 uur.",
+          "source": "Document_19.pdf"
+        },
+        {
+          "rank": 18,
+          "chunk_id": 11,
+          "score": 1390.03369140625,
+          "content": "Het kantoor is geopend van 8:30 tot 17:30.",
+          "source": "Document_11.pdf"
+        },
+        {
+          "rank": 19,
+          "chunk_id": 6,
+          "score": 1356.1693115234375,
+          "content": "De dresscode wordt beschreven als smart casual.",
+          "source": "Document_6.pdf"
+        },
+        {
+          "rank": 20,
+          "chunk_id": 13,
+          "score": 1218.742431640625,
+          "content": "De IT helpdesk is bereikbaar via intern telefoonnummer 5555.",
+          "source": "Document_13.pdf"
+        }
+      ]
+    },
+    "llm": {
+      "status": "error",
+      "error": "Invalid LLM response format: 5 validation errors for RerankerResponse\nblock_rankings.0.reasoning\n  Field required [type=missing, input_value={'document_number': 1, 'relevance_score': 0.0}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nblock_rankings.1.reasoning\n  Field required [type=missing, input_value={'document_number': 2, 'relevance_score': 0.0}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nblock_rankings.2.reasoning\n  Field required [type=missing, input_value={'document_number': 3, 'relevance_score': 0.0}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nblock_rankings.3.reasoning\n  Field required [type=missing, input_value={'document_number': 4, 'relevance_score': 0.0}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nblock_rankings.4.reasoning\n  Field required [type=missing, input_value={'document_number': 5, 'relevance_score': 0.0}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/missing\nRaw content: {\n  \"block_rankings\": [\n    {\n      \"document_number\": 1,\n      \"relevance_score\": 0.0\n    },\n    {\n      \"document_number\": 2,\n      \"relevance_score\": 0.0\n    },\n    {\n      \"document_number\": 3,\n      \"relevance_score\": 0.0\n    },\n    {\n      \"document_number\": 4,\n      \"relevance_score\": 0.0\n    },\n    {\n      \"document_number\": 5,\n      \"relevance_score\": 0.0\n    }\n  ]\n}"
+    }
+  }
+}

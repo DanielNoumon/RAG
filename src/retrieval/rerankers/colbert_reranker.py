@@ -1,48 +1,92 @@
-"""Cross-encoder reranker using sentence-transformers for document relevance scoring."""
+"""ColBERT-based reranker using late interaction for document relevance scoring."""
 from typing import List, Dict, Any, Optional
+import torch
+from transformers import AutoTokenizer, AutoModel
 
-from sentence_transformers import CrossEncoder
 
+class ColBERTReranker:
+    """Reranks retrieved chunks using ColBERT late interaction.
 
-class CrossEncoderReranker:
-    """Reranks retrieved chunks using a cross-encoder model.
+    ColBERT (Contextualized Late Interaction over BERT) uses a novel
+    late interaction architecture where query and document embeddings
+    are computed independently, then combined via MaxSim operation.
+    This provides better accuracy than bi-encoders while being more
+    efficient than cross-encoders.
 
-    Cross-encoders jointly encode (query, document) pairs and produce a
-    relevance score.  They are slower than bi-encoders but significantly
-    more accurate for reranking because the model can attend across both
-    texts simultaneously.
-
-    Default model: ``cross-encoder/ms-marco-MiniLM-L-6-v2`` — a fast,
-    lightweight model trained on MS MARCO that works well for general
-    passage reranking.
+    Default model: ``colbert-ir/colbertv2.0`` — state-of-the-art
+    retrieval model trained on MS MARCO.
 
     The public ``rerank()`` method follows the same signature as the
-    LLM-based ``Reranker`` so the two can be used interchangeably in
-    retrieval pipelines.
+    other rerankers so they can be used interchangeably in retrieval
+    pipelines.
     """
 
     def __init__(
         self,
-        model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        model_name: str = "colbert-ir/colbertv2.0",
         top_n: int = 5,
         device: Optional[str] = None,
     ):
-        """Initialise the cross-encoder reranker.
+        """Initialise the ColBERT reranker.
 
         Args:
-            model_name: HuggingFace cross-encoder model identifier.
+            model_name: HuggingFace ColBERT model identifier.
             top_n: Default number of chunks to keep after reranking.
             device: Torch device string (e.g. ``"cpu"``, ``"cuda"``).
-                    ``None`` lets sentence-transformers pick automatically.
+                    ``None`` lets torch pick automatically.
         """
         self.model_name = model_name
         self.top_n = top_n
-        self.model = CrossEncoder(model_name, device=device)
-        print(f"Cross-Encoder Reranker loaded: {model_name}")
+        
+        if device is None:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name).to(self.device)
+        self.model.eval()
+        
+        print(f"ColBERT Reranker loaded: {model_name} on {self.device}")
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+    def _compute_score(self, query: str, passage: str) -> float:
+        """Compute ColBERT late interaction score for a query-passage pair."""
+        # Tokenize query and passage separately
+        query_inputs = self.tokenizer(
+            query,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=32,  # Queries are typically short
+        ).to(self.device)
+        
+        passage_inputs = self.tokenizer(
+            passage,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=512,
+        ).to(self.device)
+        
+        with torch.no_grad():
+            # Get contextualized embeddings for query and passage
+            query_embeddings = self.model(**query_inputs).last_hidden_state
+            passage_embeddings = self.model(**passage_inputs).last_hidden_state
+            
+            # Late interaction: MaxSim operation
+            # For each query token, find max similarity with any passage token
+            # Shape: [batch, query_len, hidden_dim] x [batch, passage_len, hidden_dim]
+            similarity_matrix = torch.matmul(
+                query_embeddings, passage_embeddings.transpose(1, 2)
+            )  # [batch, query_len, passage_len]
+            
+            # Max over passage tokens for each query token
+            max_sims = similarity_matrix.max(dim=2).values  # [batch, query_len]
+            
+            # Sum over query tokens (ColBERT scoring)
+            score = max_sims.sum(dim=1).item()
+        
+        return score
 
     def rerank(
         self,
@@ -51,9 +95,9 @@ class CrossEncoderReranker:
         top_n: Optional[int] = None,
         content_key: str = "content",
         verbose: bool = True,
-        batch_size: int = 32,
+        batch_size: int = 1,  # ColBERT typically processes one at a time
     ) -> List[Dict[str, Any]]:
-        """Rerank chunks by cross-encoder relevance to the query.
+        """Rerank chunks by ColBERT late interaction relevance to the query.
 
         Args:
             query: The user query.
@@ -61,10 +105,10 @@ class CrossEncoderReranker:
             top_n: How many to keep (defaults to ``self.top_n``).
             content_key: Key in each chunk dict that holds the text content.
             verbose: Whether to print progress information.
-            batch_size: Batch size passed to the cross-encoder ``predict``.
+            batch_size: Not used for ColBERT (processes sequentially).
 
         Returns:
-            Top-n chunks sorted descending by cross-encoder relevance score.
+            Top-n chunks sorted descending by ColBERT relevance score.
         """
         n = top_n or self.top_n
         if not chunks:
@@ -72,26 +116,16 @@ class CrossEncoderReranker:
 
         if verbose:
             print(
-                f"Reranking {len(chunks)} chunks with cross-encoder "
-                f"({self.model_name}, batch_size={batch_size})..."
+                f"Reranking {len(chunks)} chunks with ColBERT "
+                f"({self.model_name})..."
             )
 
-        # Build (query, passage) pairs
-        pairs = [
-            [query, chunk.get(content_key, "")]
-            for chunk in chunks
-        ]
-
-        # Score all pairs in one call (the model handles internal batching)
-        scores = self.model.predict(
-            pairs,
-            batch_size=batch_size,
-            show_progress_bar=verbose,
-        )
-
-        # Attach scores to chunks
+        # Score all chunks
         scored_chunks = []
-        for chunk, score in zip(chunks, scores):
+        for chunk in chunks:
+            passage = chunk.get(content_key, "")
+            score = self._compute_score(query, passage)
+            
             chunk_with_score = chunk.copy()
             chunk_with_score["rerank_score"] = float(score)
             scored_chunks.append(chunk_with_score)
@@ -107,13 +141,13 @@ class CrossEncoderReranker:
 
 if __name__ == "__main__":
     # Demo: Test reranker with sample chunks
-    print("=== Cross-Encoder Reranker Demo ===")
+    print("=== ColBERT Reranker Demo ===")
     
     # Configuration
     VERBOSE_LOGGING = True  # Set to False to disable progress logging
     
     # Create reranker instance
-    reranker = CrossEncoderReranker()
+    reranker = ColBERTReranker()
     
     # Sample query
     query = "Hoeveel vakantiedagen krijg ik volgens het document?"

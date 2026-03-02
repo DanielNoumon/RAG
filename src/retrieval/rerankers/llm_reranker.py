@@ -12,7 +12,7 @@ from core.prompts import RERANKER_SYSTEM_PROMPT
 class DocumentRanking(BaseModel):
     """Individual document ranking from LLM."""
     document_number: int = Field(..., description="Document number (1-indexed)")
-    reasoning: str = Field(..., description="Reasoning for relevance score")
+    reasoning: Optional[str] = Field(None, description="Reasoning for relevance score")
     relevance_score: float = Field(..., ge=0.0, le=1.0, description="Relevance score between 0 and 1")
     answer_evidence: Optional[str] = Field("", description="Exact sentence or phrase that answers the query")
     
@@ -34,16 +34,18 @@ class Reranker:
     especially with Dutch text.
     """
     
-    def __init__(self, model_name: str = None, top_n: int = 5):
+    def __init__(self, model_name: str = None, top_n: int = 5, include_reasoning: bool = False):
         """Initialize reranker with Azure OpenAI client.
         
         Args:
             model_name: Azure OpenAI deployment name (uses config default if None)
             top_n: Number of chunks to keep after reranking
+            include_reasoning: Whether to include reasoning in LLM responses (slower but more transparent)
         """
         self.config = Config()
         self.model_name = model_name or self.config.AZURE_OPENAI_DEPLOYMENT_NAME
         self.top_n = top_n
+        self.include_reasoning = include_reasoning
         self.client = AzureOpenAIClient()
         print(f"LLM Reranker loaded: {self.model_name}")
     
@@ -92,6 +94,37 @@ Antwoord alleen met een JSON object met een "relevance_score" veld:
             formatted_blocks += f"Document {i}:\n\"\"\"\n{content}\n\"\"\"\n\n"
         
         # Enhanced prompt with structured JSON output
+        if self.include_reasoning:
+            json_structure = """{
+  "block_rankings": [
+    {
+      "document_number": 1,
+      "reasoning": "<reasoning for document 1>",
+      "relevance_score": <float 0.0-1.0>
+    },
+    {
+      "document_number": 2,
+      "reasoning": "<reasoning for document 2>",
+      "relevance_score": <float 0.0-1.0>
+    },
+    ... (one entry per document)
+  ]
+}"""
+        else:
+            json_structure = """{
+  "block_rankings": [
+    {
+      "document_number": 1,
+      "relevance_score": <float 0.0-1.0>
+    },
+    {
+      "document_number": 2,
+      "relevance_score": <float 0.0-1.0>
+    },
+    ... (one entry per document)
+  ]
+}"""
+        
         user_prompt = f"""=== Query ===
 "{query}"
 
@@ -99,21 +132,7 @@ Antwoord alleen met een JSON object met een "relevance_score" veld:
 You are given {len(chunks)} documents to evaluate for relevance to this query.
 Your task is to evaluate each document and return a JSON with EXACTLY this structure:
 
-{{
-  "block_rankings": [
-    {{
-      "document_number": 1,
-      "reasoning": "<reasoning for document 1>",
-      "relevance_score": <float 0.0-1.0>
-    }},
-    {{
-      "document_number": 2,
-      "reasoning": "<reasoning for document 2>",
-      "relevance_score": <float 0.0-1.0>
-    }},
-    ... (one entry per document)
-  ]
-}}
+{json_structure}
 
 IMPORTANT: You MUST include "document_number" (1, 2, 3, etc.) in each ranking.
 Provide exactly {len(chunks)} rankings.
@@ -251,14 +270,14 @@ if __name__ == "__main__":
     print("=== Reranker Demo ===")
     
     # Configuration
-    MODEL_NAME = None  # Azure OpenAI deployment name (None = use config default)
+    MODEL_NAME = "gpt-5-nano"  # Azure OpenAI deployment name (None = use config default)
     VERBOSE_LOGGING = True  # Set to False to disable progress logging
     
     # Create reranker instance
     reranker = Reranker(model_name=MODEL_NAME)
     
     # Sample query
-    query = "Hoeveel vakantiedagen staan er in het document en hoe moet je deze aanvragen?"
+    query = "Hoeveel vakantiedagen krijg ik volgens het document?"
     
     # Create 20 demo chunks (some relevant, some not)
     demo_chunks = []
