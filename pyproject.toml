@@ -18,6 +18,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "PyMuPDF>=1.26.0",
     "hnswlib>=0.8.0",
+    "FlagEmbedding>=1.2.0",
 ]
 
 [tool.setuptools]
