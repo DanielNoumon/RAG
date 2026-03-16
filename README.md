@@ -23,10 +23,15 @@ A Retrieval-Augmented Generation (RAG) pipeline for querying a reference documen
 │   ├── preprocessing/          # Chunking + embedding helper scripts
 │   │   ├── chunker.py
 │   │   └── build_embeddings.py
-│   ├── retrieval/              # Retrieval strategies (vector / BM25 / reranker)
+│   ├── retrieval/              # Retrieval strategies (vector / BM25 / hybrid / rerankers)
 │   │   ├── bm25.py
 │   │   ├── hybrid.py
-│   │   └── reranker.py
+│   │   └── rerankers/          # Multiple reranking implementations
+│   │       ├── llm_reranker.py           # LLM-based (Azure OpenAI)
+│   │       ├── cross_encoder_reranker.py # Cross-encoder (fast, accurate)
+│   │       ├── colbert_reranker.py       # ColBERT late interaction
+│   │       ├── bge_reranker.py           # BGE (disabled - heavy model)
+│   │       └── compare_rerankers.py      # Benchmark all rerankers
 │   └── utils/                  # Supporting utilities (inspect/debug helpers)
 │       ├── inspect_results.py
 │       └── debug_json.py
@@ -104,6 +109,26 @@ Each script has a `CONFIG` section under `if __name__ == "__main__"` where param
 | **Exhaustive KNN** | Small datasets | Exact cosine similarity over all documents, O(n) |
 | **BM25** | Keyword-heavy queries | TF-IDF based scoring with length normalisation, no embeddings needed |
 | **Hybrid** | Best overall quality | Combines vector + BM25 via Reciprocal Rank Fusion (RRF) or weighted scores |
+
+### Rerankers
+
+After initial retrieval, rerankers re-score and re-order chunks for improved relevance:
+
+| Reranker | Speed | Accuracy | Use Case |
+|----------|-------|----------|----------|
+| **Cross-Encoder** | Fast (~2.5s) | Good | Default choice, best speed/accuracy balance |
+| **ColBERT** | Medium (~4s) | Good | Late interaction, good for longer contexts |
+| **LLM** | Slow (~40s) | Excellent | Most accurate, supports reasoning, expensive |
+| **BGE** | N/A | N/A | Disabled (requires 10GB model, 16GB+ RAM) |
+
+Configure in run scripts via:
+```python
+"rerank": True,
+"reranker_type": "cross_encoder",  # Options: "llm", "cross_encoder", "colbert"
+"rerank_top_n": 5,
+"rerank_model": None,  # None = use default model
+"rerank_include_reasoning": False,  # LLM only: detailed explanations
+```
 
 ## Output
 
