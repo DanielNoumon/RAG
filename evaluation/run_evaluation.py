@@ -258,12 +258,35 @@ def main(config: Dict[str, Any]):
             "SPLADE", splade_search, questions, k_values,
         )
 
+    # ---- SPLADE-NL (Dutch) ----
+    if config.get("run_splade_nl", False):
+        print("=" * 60)
+        print("Evaluating: SPLADE-NL")
+        print("=" * 60)
+        splade_nl = SPLADERetriever(
+            chunks_path=config["chunks_file"],
+            model_name=config.get(
+                "splade_nl_model",
+                "sparse-encoder/splade-robbert-dutch-base-v1",
+            ),
+            index_path=config.get("splade_nl_index_file"),
+        )
+
+        def splade_nl_search(query, top_k):
+            return splade_nl.search(query, top_k)
+
+        results_all["splade_nl"] = evaluate_method(
+            "SPLADE-NL", splade_nl_search, questions, k_values,
+        )
+
     # ---- shared embedding manager for vector methods ----
     needs_vector = any(
         config.get(k, True) for k in [
             "run_vector_hnsw", "run_vector_knn",
             "run_hybrid_bm25_hnsw", "run_hybrid_bm25_knn",
             "run_hybrid_splade_hnsw", "run_hybrid_splade_knn",
+            "run_hybrid_splade_nl_hnsw",
+            "run_hybrid_splade_nl_knn",
         ]
     )
     emb_mgr = None
@@ -404,6 +427,68 @@ def main(config: Dict[str, Any]):
             "SPLADE+KNN", hybrid_splade_knn, questions, k_values,
         )
 
+    # ---- Hybrid: SPLADE-NL + HNSW ----
+    if config.get("run_hybrid_splade_nl_hnsw", False):
+        print("=" * 60)
+        print("Evaluating: Hybrid (SPLADE-NL+HNSW)")
+        print("=" * 60)
+        if "splade_nl" not in dir():
+            splade_nl = SPLADERetriever(
+                chunks_path=config["chunks_file"],
+                model_name=config.get(
+                    "splade_nl_model",
+                    "sparse-encoder/splade-robbert-dutch-base-v1",
+                ),
+                index_path=config.get("splade_nl_index_file"),
+            )
+        if "hnsw" not in dir():
+            hnsw = HNSWStorageManager(config["embeddings_hnsw"])
+
+        def hybrid_splade_nl_hnsw(query, top_k):
+            candidate_k = top_k * 3
+            sparse = splade_nl.search(query, candidate_k)
+            dense = _run_vector_search(
+                query, emb_mgr, hnsw, candidate_k,
+                content_to_cid,
+            )
+            return _rrf_fuse(sparse, dense, top_k)
+
+        results_all["hybrid_splade_nl_hnsw"] = evaluate_method(
+            "SPLADE-NL+HNSW",
+            hybrid_splade_nl_hnsw, questions, k_values,
+        )
+
+    # ---- Hybrid: SPLADE-NL + KNN ----
+    if config.get("run_hybrid_splade_nl_knn", False):
+        print("=" * 60)
+        print("Evaluating: Hybrid (SPLADE-NL+KNN)")
+        print("=" * 60)
+        if "splade_nl" not in dir():
+            splade_nl = SPLADERetriever(
+                chunks_path=config["chunks_file"],
+                model_name=config.get(
+                    "splade_nl_model",
+                    "sparse-encoder/splade-robbert-dutch-base-v1",
+                ),
+                index_path=config.get("splade_nl_index_file"),
+            )
+        if "knn" not in dir():
+            knn = JSONStorageManager(config["embeddings_knn"])
+
+        def hybrid_splade_nl_knn(query, top_k):
+            candidate_k = top_k * 3
+            sparse = splade_nl.search(query, candidate_k)
+            dense = _run_vector_search(
+                query, emb_mgr, knn, candidate_k,
+                content_to_cid,
+            )
+            return _rrf_fuse(sparse, dense, top_k)
+
+        results_all["hybrid_splade_nl_knn"] = evaluate_method(
+            "SPLADE-NL+KNN",
+            hybrid_splade_nl_knn, questions, k_values,
+        )
+
     # ------------------------------------------------------------------
     # Print comparison table
     # ------------------------------------------------------------------
@@ -501,16 +586,21 @@ if __name__ == "__main__":
         "embeddings_hnsw": "data/embeddings/embeddings_hnsw.json",
         "embeddings_knn": "data/embeddings/embeddings_knn.json",
         "splade_index_file": "data/splade/splade_index.json",
+        "splade_nl_model": "sparse-encoder/splade-robbert-dutch-base-v1",
+        "splade_nl_index_file": "data/splade/splade_dutch_index.json",
 
         # Which methods to evaluate
         "run_bm25": True,
         "run_splade": True,
+        "run_splade_nl": True,
         "run_vector_hnsw": True,
         "run_vector_knn": True,
         "run_hybrid_bm25_hnsw": True,
         "run_hybrid_bm25_knn": True,
         "run_hybrid_splade_hnsw": True,
         "run_hybrid_splade_knn": True,
+        "run_hybrid_splade_nl_hnsw": True,
+        "run_hybrid_splade_nl_knn": True,
 
         # Evaluation k values
         "k_values": [1, 3, 5, 10],
