@@ -1,6 +1,6 @@
 # Document RAG Pipeline
 
-A Retrieval-Augmented Generation (RAG) pipeline for querying a reference document using Azure OpenAI, vector search, BM25 and a reranker. Also an open-source embedder and PostgreSQL connection.
+A Retrieval-Augmented Generation (RAG) pipeline for querying Dutch reference documents using Azure OpenAI, multiple retrieval strategies (vector search, BM25, SPLADE sparse retrieval), hybrid fusion (RRF), rerankers, and a systematic evaluation framework to compare retrieval effectiveness.
 
 ## Project Structure
 
@@ -9,60 +9,62 @@ A Retrieval-Augmented Generation (RAG) pipeline for querying a reference documen
 │   ├── run_vector_search.py     # Vector search test (HNSW / exhaustive KNN)
 │   ├── run_keyword_search.py    # BM25-only keyword retrieval test
 │   ├── run_hybrid_search.py     # Hybrid (vector + BM25) test + optional reranker
-│   └── debug_json.py           # Simple JSON serialization checks (moved to src/utils)
+│   └── run_splade_search.py     # SPLADE sparse retrieval test
+├── evaluation/                 # Retrieval evaluation framework
+│   ├── run_evaluation.py        # Main evaluation: runs all methods, computes metrics
+│   ├── metrics.py               # IR metrics (Recall@k, Precision@k, MRR, MAP, NDCG@k)
+│   └── _print_results.py       # Pretty-print latest eval results
 ├── src/                        # Production-ready packages imported by scripts
 │   ├── core/                   # Core RAG orchestration (embedding, storage, prompts, config)
+│   │   ├── embedding_manager.py          # Default MiniLM embedding manager
+│   │   ├── model_embedding_manager.py    # Multi-model manager (E5-NL, 8B models)
+│   │   ├── hnsw_storage.py              # HNSW approximate nearest neighbor index
+│   │   ├── json_storage.py              # KNN exhaustive search storage
 │   │   ├── vector_search_pipeline_hnsw.py
 │   │   ├── vector_search_pipeline_knn.py
-│   │   ├── hnsw_storage.py
-│   │   ├── json_storage.py
-│   │   ├── embedding_manager.py
 │   │   ├── azure_openai.py
 │   │   ├── config.py
 │   │   └── prompts.py
-│   ├── preprocessing/          # Chunking + embedding helper scripts
+│   ├── preprocessing/          # Chunking + embedding build scripts
 │   │   ├── chunker.py
-│   │   └── build_embeddings.py
-│   ├── retrieval/              # Retrieval strategies (vector / BM25 / hybrid / rerankers)
-│   │   ├── bm25.py
-│   │   ├── hybrid.py
-│   │   └── rerankers/          # Multiple reranking implementations
-│   │       ├── llm_reranker.py           # LLM-based (Azure OpenAI)
-│   │       ├── cross_encoder_reranker.py # Cross-encoder (fast, accurate)
-│   │       ├── colbert_reranker.py       # ColBERT late interaction
-│   │       ├── bge_reranker.py           # BGE (disabled - heavy model)
-│   │       └── compare_rerankers.py      # Benchmark all rerankers
-│   └── utils/                  # Supporting utilities (inspect/debug helpers)
-│       ├── inspect_results.py
-│       └── debug_json.py
+│   │   ├── build_embeddings.py          # Rebuild MiniLM KNN/HNSW stores
+│   │   ├── build_all_embeddings.py      # Build stores for all embedding models
+│   │   └── build_splade_index.py        # Build SPLADE sparse index
+│   ├── retrieval/              # Retrieval strategies
+│   │   ├── bm25.py                      # BM25 keyword retrieval
+│   │   ├── splade.py                    # SPLADE sparse neural retrieval
+│   │   ├── hybrid.py                    # Hybrid fusion (RRF / weighted)
+│   │   └── rerankers/                   # Multiple reranking implementations
+│   │       ├── cross_encoder_reranker.py
+│   │       ├── colbert_reranker.py
+│   │       ├── llm_reranker.py
+│   │       └── compare_rerankers.py
+│   └── utils/
 ├── data/
 │   ├── documents/              # Source documents (PDFs, TXT)
 │   ├── chunks/                 # Chunked documents (JSON)
-│   ├── embeddings/             # Vector embeddings
-│   └── test_results/           # Saved test results (JSON, timestamped)
-├── requirements.txt
+│   ├── embeddings/             # Vector embeddings (KNN/HNSW per model)
+│   ├── splade/                 # SPLADE sparse indexes
+│   ├── eval_results/           # Evaluation output (JSON, timestamped)
+│   └── test_sets/              # Curated evaluation test sets
+├── pyproject.toml              # Project config + dependencies (uv)
 ├── .env / .env.example
 ```
 
 ## Setup
 
-1. Create and activate a conda environment:
-   ```
-   conda create -n test_rag python=3.11 -y
-   conda activate test_rag
-   ```
-
-2. Install dependencies (optional when you install editable mode, but useful if you need the packages without the editable install):
-   ```
-   pip install -r requirements.txt
+1. Install [uv](https://docs.astral.sh/uv/) (fast Python package manager):
+   ```bash
+   # Windows
+   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
    ```
 
-3. Install the package in editable mode so CLI scripts can import `core`/`retrieval` directly; this is the only required step for dependency setup as it installs everything listed above:
-   ```
-   pip install -e .
+2. Install dependencies and the package in editable mode:
+   ```bash
+   uv sync
    ```
 
-4. Configure `.env` (copy from `.env.example`):
+3. Configure `.env` (copy from `.env.example`):
    ```
    AZURE_OPENAI_API_KEY=your_key
    AZURE_OPENAI_ENDPOINT=your_endpoint
@@ -73,63 +75,70 @@ A Retrieval-Augmented Generation (RAG) pipeline for querying a reference documen
 
 ## Usage
 
-### Full pipeline (from scratch)
+### Building indexes
 
 ```bash
-python scripts/chunker.py           # Chunk source document (delegates to src/preprocessing.chunker)
-python scripts/run_hybrid_search.py # Run hybrid retrieval + reranker test flows
-python scripts/run_vector_search.py # Run vector-only retrieval test (HNSW/knn)
+uv run python -m preprocessing.build_embeddings       # MiniLM KNN + HNSW
+uv run python -m preprocessing.build_splade_index     # SPLADE sparse indexes
+uv run python -m preprocessing.build_all_embeddings   # All embedding models
 ```
 
-> **Note:** The CLI scripts now expect the repository to be installed (editable install recommended above) so that `core.*` and `retrieval.*` import paths resolve without modifying `sys.path` manually.
+### Running retrieval
 
-### Configuration
+```bash
+uv run python scripts/run_vector_search.py    # Vector search (HNSW/KNN)
+uv run python scripts/run_keyword_search.py   # BM25 keyword search
+uv run python scripts/run_splade_search.py    # SPLADE sparse retrieval
+uv run python scripts/run_hybrid_search.py    # Hybrid fusion + reranker
+```
 
-Each script has a `CONFIG` section under `if __name__ == "__main__"` where parameters can be adjusted.
+### Running evaluation
 
-**chunker.py**
-- `file_path` — Source file (.pdf or .txt)
-- `chunk_size` — Words per chunk (default: 500)
-- `overlap` — Overlapping words between chunks (default: 100)
+```bash
+uv run python -m evaluation.run_evaluation
+```
 
-**run_vector_search.py**
-- `storage_file` — Path to embeddings file
-- `embedding_model` — Sentence transformer model name
-- `top_k` — Number of chunks to retrieve per query
-- `show_chunks` — Print full chunk content in terminal (default: False)
-- `similarity_threshold` — Optional minimum similarity filter
-- `questions` — List of test questions
-- `chunks_file`: "data/chunks/document_handbook_mei_2024_chunks.json"
+This benchmarks all retrieval methods on the curated test set and reports:
+- **MRR**, **MAP**, **NDCG@k**, **Recall@k**, **Precision@k**
+- Per-question-type breakdown (factual, paraphrase, multi-aspect)
+- Results saved to `data/eval_results/`
 
 ### Search Methods
 
-| Method | Best for | How it works |
-|--------|----------|-------------|
-| **HNSW** | Large datasets (100s+ docs) | Approximate nearest neighbor via graph traversal, O(log n) |
-| **Exhaustive KNN** | Small datasets | Exact cosine similarity over all documents, O(n) |
-| **BM25** | Keyword-heavy queries | TF-IDF based scoring with length normalisation, no embeddings needed |
-| **Hybrid** | Best overall quality | Combines vector + BM25 via Reciprocal Rank Fusion (RRF) or weighted scores |
+| Method | Description | MRR |
+|--------|-------------|-----|
+| **E5-NL (HNSW/KNN)** | Dutch-finetuned E5-large dense retrieval | 0.85 |
+| **SPLADE-NL** | Dutch SPLADE sparse neural retrieval | 0.82 |
+| **SPLADE-NL+E5-NL** | RRF hybrid of two strong retrievers | 0.85 |
+| **SPLADE** | English SPLADE (naver/splade-cocondenser) | 0.60 |
+| **Vector (HNSW/KNN)** | MiniLM multilingual dense retrieval | 0.47 |
+| **BM25** | TF-IDF keyword retrieval | 0.40 |
+| **Hybrid (sparse+dense)** | RRF fusion of any sparse + dense pair | varies |
+
+### Embedding Models
+
+| Model | Dim | Language | Notes |
+|-------|-----|----------|-------|
+| `paraphrase-multilingual-MiniLM-L12-v2` | 384 | Multilingual | Default, fast |
+| `clips/e5-large-trm-nl` | 1024 | Dutch | Best performing |
+| `sparse-encoder/splade-robbert-dutch-base-v1` | sparse | Dutch | SPLADE variant |
+| `naver/splade-cocondenser-ensembledistil` | sparse | English | Default SPLADE |
 
 ### Rerankers
-
-After initial retrieval, rerankers re-score and re-order chunks for improved relevance:
 
 | Reranker | Speed | Accuracy | Use Case |
 |----------|-------|----------|----------|
 | **Cross-Encoder** | Fast (~2.5s) | Good | Default choice, best speed/accuracy balance |
 | **ColBERT** | Medium (~4s) | Good | Late interaction, good for longer contexts |
 | **LLM** | Slow (~40s) | Excellent | Most accurate, supports reasoning, expensive |
-| **BGE** | N/A | N/A | Disabled (requires 10GB model, 16GB+ RAM) |
 
 Configure in run scripts via:
 ```python
 "rerank": True,
 "reranker_type": "cross_encoder",  # Options: "llm", "cross_encoder", "colbert"
 "rerank_top_n": 5,
-"rerank_model": None,  # None = use default model
-"rerank_include_reasoning": False,  # LLM only: detailed explanations
 ```
 
 ## Output
 
-Test results are automatically saved to `data/test_results/` as timestamped JSON files containing questions, answers, retrieved chunks, and similarity scores.
+Evaluation results are saved to `data/eval_results/` as timestamped JSON files containing per-question metrics, retrieved chunk IDs, and aggregated scores across all methods.
