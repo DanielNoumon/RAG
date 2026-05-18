@@ -24,6 +24,7 @@ from evaluation.metrics import (
 from retrieval.bm25 import BM25Retriever
 from retrieval.splade import SPLADERetriever
 from core.embedding_manager import EmbeddingManager
+from core.model_embedding_manager import ModelEmbeddingManager
 from core.hnsw_storage import HNSWStorageManager
 from core.json_storage import JSONStorageManager
 
@@ -62,13 +63,20 @@ def _build_content_to_chunk_id(
 
 def _run_vector_search(
     query: str,
-    embedding_mgr: EmbeddingManager,
+    embedding_mgr,
     store,
     top_k: int,
     content_to_cid: Dict[str, int],
 ) -> List[Dict[str, Any]]:
-    """Run vector search and map results to chunk_ids."""
-    query_emb = embedding_mgr.embed_text(query)
+    """Run vector search and map results to chunk_ids.
+
+    Supports both EmbeddingManager (embed_text) and
+    ModelEmbeddingManager (embed_query).
+    """
+    if hasattr(embedding_mgr, "embed_query"):
+        query_emb = embedding_mgr.embed_query(query)
+    else:
+        query_emb = embedding_mgr.embed_text(query)
     raw = store.search_similar(
         query_emb, limit=top_k, threshold=0.0
     )
@@ -283,6 +291,7 @@ def main(config: Dict[str, Any]):
     needs_vector = any(
         config.get(k, True) for k in [
             "run_vector_hnsw", "run_vector_knn",
+            "run_vector_e5nl_hnsw", "run_vector_e5nl_knn",
             "run_hybrid_bm25_hnsw", "run_hybrid_bm25_knn",
             "run_hybrid_splade_hnsw", "run_hybrid_splade_knn",
             "run_hybrid_splade_nl_hnsw",
@@ -489,6 +498,54 @@ def main(config: Dict[str, Any]):
             hybrid_splade_nl_knn, questions, k_values,
         )
 
+    # ---- E5-NL Vector (HNSW) ----
+    if config.get("run_vector_e5nl_hnsw", False):
+        print("=" * 60)
+        print("Evaluating: Vector E5-NL (HNSW)")
+        print("=" * 60)
+        e5nl_emb = ModelEmbeddingManager(
+            config["e5nl_model"]
+        )
+        e5nl_hnsw = HNSWStorageManager(
+            config["embeddings_e5nl_hnsw"],
+            dim=e5nl_emb.get_embedding_dimension(),
+        )
+
+        def e5nl_hnsw_search(query, top_k):
+            return _run_vector_search(
+                query, e5nl_emb, e5nl_hnsw,
+                top_k, content_to_cid,
+            )
+
+        results_all["vector_e5nl_hnsw"] = evaluate_method(
+            "E5-NL (HNSW)",
+            e5nl_hnsw_search, questions, k_values,
+        )
+
+    # ---- E5-NL Vector (KNN) ----
+    if config.get("run_vector_e5nl_knn", False):
+        print("=" * 60)
+        print("Evaluating: Vector E5-NL (KNN)")
+        print("=" * 60)
+        if "e5nl_emb" not in dir():
+            e5nl_emb = ModelEmbeddingManager(
+                config["e5nl_model"]
+            )
+        e5nl_knn = JSONStorageManager(
+            config["embeddings_e5nl_knn"]
+        )
+
+        def e5nl_knn_search(query, top_k):
+            return _run_vector_search(
+                query, e5nl_emb, e5nl_knn,
+                top_k, content_to_cid,
+            )
+
+        results_all["vector_e5nl_knn"] = evaluate_method(
+            "E5-NL (KNN)",
+            e5nl_knn_search, questions, k_values,
+        )
+
     # ------------------------------------------------------------------
     # Print comparison table
     # ------------------------------------------------------------------
@@ -588,6 +645,9 @@ if __name__ == "__main__":
         "splade_index_file": "data/splade/splade_index.json",
         "splade_nl_model": "sparse-encoder/splade-robbert-dutch-base-v1",
         "splade_nl_index_file": "data/splade/splade_dutch_index.json",
+        "e5nl_model": "clips/e5-large-trm-nl",
+        "embeddings_e5nl_hnsw": "data/embeddings/embeddings_e5nl_hnsw.json",
+        "embeddings_e5nl_knn": "data/embeddings/embeddings_e5nl_knn.json",
 
         # Which methods to evaluate
         "run_bm25": True,
@@ -595,6 +655,8 @@ if __name__ == "__main__":
         "run_splade_nl": True,
         "run_vector_hnsw": True,
         "run_vector_knn": True,
+        "run_vector_e5nl_hnsw": True,
+        "run_vector_e5nl_knn": True,
         "run_hybrid_bm25_hnsw": True,
         "run_hybrid_bm25_knn": True,
         "run_hybrid_splade_hnsw": True,

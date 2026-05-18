@@ -14,13 +14,14 @@ requires-python = ">=3.11"
 dependencies = [
     "openai>=1.0.0",
     "numpy>=1.24.0",
-    "sentence-transformers>=2.2.0",
+    "sentence-transformers>=3.0.0",
     "python-dotenv>=1.0.0",
     "PyMuPDF>=1.26.0",
     "hnswlib>=0.8.0",
     "FlagEmbedding>=1.2.0",
-    "transformers>=4.38.0",
+    "transformers>=4.51.0",
     "torch==2.6.0",
+    "accelerate>=0.30.0",
 ]
 
 [tool.setuptools]
@@ -30,9 +31,9 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cpu" }
+torch = { index = "pytorch-cu124" }
