@@ -72,23 +72,30 @@ def _run_vector_search(
 
     Supports both EmbeddingManager (embed_text) and
     ModelEmbeddingManager (embed_query).
+    Deduplicates by chunk_id (keeps best score per chunk).
     """
     if hasattr(embedding_mgr, "embed_query"):
         query_emb = embedding_mgr.embed_query(query)
     else:
         query_emb = embedding_mgr.embed_text(query)
     raw = store.search_similar(
-        query_emb, limit=top_k, threshold=0.0
+        query_emb, limit=top_k * 3, threshold=0.0
     )
+    seen_cids: set = set()
     results = []
     for r in raw:
         content = r["content"]
         cid = content_to_cid.get(content, r.get("id", -1))
+        if cid in seen_cids:
+            continue
+        seen_cids.add(cid)
         results.append({
             "chunk_id": cid,
             "content": content,
             "score": r["similarity"],
         })
+        if len(results) >= top_k:
+            break
     return results
 
 
@@ -349,10 +356,9 @@ def main(config: Dict[str, Any]):
             hnsw = HNSWStorageManager(config["embeddings_hnsw"])
 
         def hybrid_bm25_hnsw(query, top_k):
-            candidate_k = top_k * 3
-            sparse = bm25.search(query, candidate_k)
+            sparse = bm25.search(query, top_k)
             dense = _run_vector_search(
-                query, emb_mgr, hnsw, candidate_k,
+                query, emb_mgr, hnsw, top_k,
                 content_to_cid,
             )
             return _rrf_fuse(sparse, dense, top_k)
@@ -372,10 +378,9 @@ def main(config: Dict[str, Any]):
             knn = JSONStorageManager(config["embeddings_knn"])
 
         def hybrid_bm25_knn(query, top_k):
-            candidate_k = top_k * 3
-            sparse = bm25.search(query, candidate_k)
+            sparse = bm25.search(query, top_k)
             dense = _run_vector_search(
-                query, emb_mgr, knn, candidate_k,
+                query, emb_mgr, knn, top_k,
                 content_to_cid,
             )
             return _rrf_fuse(sparse, dense, top_k)
@@ -398,10 +403,9 @@ def main(config: Dict[str, Any]):
             hnsw = HNSWStorageManager(config["embeddings_hnsw"])
 
         def hybrid_splade_hnsw(query, top_k):
-            candidate_k = top_k * 3
-            sparse = splade.search(query, candidate_k)
+            sparse = splade.search(query, top_k)
             dense = _run_vector_search(
-                query, emb_mgr, hnsw, candidate_k,
+                query, emb_mgr, hnsw, top_k,
                 content_to_cid,
             )
             return _rrf_fuse(sparse, dense, top_k)
@@ -424,10 +428,9 @@ def main(config: Dict[str, Any]):
             knn = JSONStorageManager(config["embeddings_knn"])
 
         def hybrid_splade_knn(query, top_k):
-            candidate_k = top_k * 3
-            sparse = splade.search(query, candidate_k)
+            sparse = splade.search(query, top_k)
             dense = _run_vector_search(
-                query, emb_mgr, knn, candidate_k,
+                query, emb_mgr, knn, top_k,
                 content_to_cid,
             )
             return _rrf_fuse(sparse, dense, top_k)
@@ -454,10 +457,9 @@ def main(config: Dict[str, Any]):
             hnsw = HNSWStorageManager(config["embeddings_hnsw"])
 
         def hybrid_splade_nl_hnsw(query, top_k):
-            candidate_k = top_k * 3
-            sparse = splade_nl.search(query, candidate_k)
+            sparse = splade_nl.search(query, top_k)
             dense = _run_vector_search(
-                query, emb_mgr, hnsw, candidate_k,
+                query, emb_mgr, hnsw, top_k,
                 content_to_cid,
             )
             return _rrf_fuse(sparse, dense, top_k)
@@ -485,10 +487,9 @@ def main(config: Dict[str, Any]):
             knn = JSONStorageManager(config["embeddings_knn"])
 
         def hybrid_splade_nl_knn(query, top_k):
-            candidate_k = top_k * 3
-            sparse = splade_nl.search(query, candidate_k)
+            sparse = splade_nl.search(query, top_k)
             dense = _run_vector_search(
-                query, emb_mgr, knn, candidate_k,
+                query, emb_mgr, knn, top_k,
                 content_to_cid,
             )
             return _rrf_fuse(sparse, dense, top_k)
@@ -544,6 +545,43 @@ def main(config: Dict[str, Any]):
         results_all["vector_e5nl_knn"] = evaluate_method(
             "E5-NL (KNN)",
             e5nl_knn_search, questions, k_values,
+        )
+
+    # ---- Hybrid: SPLADE-NL + E5-NL ----
+    if config.get("run_hybrid_splade_nl_e5nl", False):
+        print("=" * 60)
+        print("Evaluating: Hybrid (SPLADE-NL+E5-NL)")
+        print("=" * 60)
+        if "splade_nl" not in dir():
+            splade_nl = SPLADERetriever(
+                chunks_path=config["chunks_file"],
+                model_name=config.get(
+                    "splade_nl_model",
+                    "sparse-encoder/splade-robbert-dutch-base-v1",
+                ),
+                index_path=config.get("splade_nl_index_file"),
+            )
+        if "e5nl_emb" not in dir():
+            e5nl_emb = ModelEmbeddingManager(
+                config["e5nl_model"]
+            )
+        if "e5nl_hnsw" not in dir():
+            e5nl_hnsw = HNSWStorageManager(
+                config["embeddings_e5nl_hnsw"],
+                dim=e5nl_emb.get_embedding_dimension(),
+            )
+
+        def hybrid_splade_nl_e5nl(query, top_k):
+            sparse = splade_nl.search(query, top_k)
+            dense = _run_vector_search(
+                query, e5nl_emb, e5nl_hnsw, top_k,
+                content_to_cid,
+            )
+            return _rrf_fuse(sparse, dense, top_k)
+
+        results_all["hybrid_splade_nl_e5nl"] = evaluate_method(
+            "SPLADE-NL+E5-NL",
+            hybrid_splade_nl_e5nl, questions, k_values,
         )
 
     # ------------------------------------------------------------------
@@ -663,6 +701,7 @@ if __name__ == "__main__":
         "run_hybrid_splade_knn": True,
         "run_hybrid_splade_nl_hnsw": True,
         "run_hybrid_splade_nl_knn": True,
+        "run_hybrid_splade_nl_e5nl": True,
 
         # Evaluation k values
         "k_values": [1, 3, 5, 10],

@@ -60,7 +60,7 @@ def rebuild(
 if __name__ == "__main__":
     # ===== CONFIGURATION =====
     CONFIG = {
-        "chunks_file": "data/chunks/..........json",
+        "chunks_file": "data/chunks/DSL_handboek_mei_2024_chunks.json",
         "knn_storage": "data/embeddings/embeddings_knn.json",
         "hnsw_storage": "data/embeddings/embeddings_hnsw.json",
     }
