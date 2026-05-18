@@ -19,6 +19,8 @@ dependencies = [
     "PyMuPDF>=1.26.0",
     "hnswlib>=0.8.0",
     "FlagEmbedding>=1.2.0",
+    "transformers>=4.38.0",
+    "torch==2.6.0",
 ]
 
 [tool.setuptools]
@@ -26,3 +28,11 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
