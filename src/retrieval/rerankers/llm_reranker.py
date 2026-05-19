@@ -43,10 +43,25 @@ class Reranker:
             include_reasoning: Whether to include reasoning in LLM responses (slower but more transparent)
         """
         self.config = Config()
-        self.model_name = model_name or self.config.AZURE_OPENAI_DEPLOYMENT_NAME
         self.top_n = top_n
         self.include_reasoning = include_reasoning
-        self.client = AzureOpenAIClient()
+
+        if model_name:
+            model_cfg = Config.get_model_config(model_name)
+            self.model_name = (
+                model_cfg["deployment_name"] or model_name
+            )
+            self.client = AzureOpenAIClient(
+                endpoint=model_cfg["endpoint"],
+                api_key=model_cfg["api_key"],
+                api_version=model_cfg["api_version"],
+            )
+        else:
+            self.model_name = (
+                self.config.AZURE_OPENAI_DEPLOYMENT_NAME
+            )
+            self.client = AzureOpenAIClient()
+
         print(f"LLM Reranker loaded: {self.model_name}")
     
     def _score_chunk(self, query: str, chunk: Dict[str, Any]) -> Dict[str, Any]:

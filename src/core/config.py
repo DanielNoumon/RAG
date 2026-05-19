@@ -30,6 +30,39 @@ class Config:
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     )
 
+    @classmethod
+    def get_model_config(cls, model_key: str) -> dict:
+        """Get Azure OpenAI config for a specific model.
+
+        Looks up env vars with the pattern:
+            AZURE_OPENAI_ENDPOINT_{MODEL_KEY}
+            AZURE_OPENAI_API_KEY_{MODEL_KEY}
+            API_VERSION_{MODEL_KEY}
+            DEPLOYMENT_NAME_{MODEL_KEY}
+
+        Falls back to the generic vars if model-specific
+        ones are not found.
+        """
+        suffix = model_key.upper().replace("-", "_")
+        return {
+            "endpoint": (
+                os.getenv(f"AZURE_OPENAI_ENDPOINT_{suffix}")
+                or cls.AZURE_OPENAI_ENDPOINT
+            ),
+            "api_key": (
+                os.getenv(f"AZURE_OPENAI_API_KEY_{suffix}")
+                or cls.AZURE_OPENAI_API_KEY
+            ),
+            "api_version": (
+                os.getenv(f"API_VERSION_{suffix}")
+                or cls.AZURE_OPENAI_API_VERSION
+            ),
+            "deployment_name": (
+                os.getenv(f"DEPLOYMENT_NAME_{suffix}")
+                or cls.AZURE_OPENAI_DEPLOYMENT_NAME
+            ),
+        }
+
     @property
     def database_url(self):
         return (

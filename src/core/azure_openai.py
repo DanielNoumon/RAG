@@ -4,12 +4,24 @@ from core.prompts import RAG_PROMPT
 
 
 class AzureOpenAIClient:
-    def __init__(self):
+    def __init__(
+        self,
+        endpoint=None,
+        api_key=None,
+        api_version=None,
+    ):
         self.config = Config()
         self.client = openai.AzureOpenAI(
-            azure_endpoint=self.config.AZURE_OPENAI_ENDPOINT,
-            api_key=self.config.AZURE_OPENAI_API_KEY,
-            api_version=self.config.AZURE_OPENAI_API_VERSION
+            azure_endpoint=(
+                endpoint or self.config.AZURE_OPENAI_ENDPOINT
+            ),
+            api_key=(
+                api_key or self.config.AZURE_OPENAI_API_KEY
+            ),
+            api_version=(
+                api_version
+                or self.config.AZURE_OPENAI_API_VERSION
+            ),
         )
 
     def generate_response(self, prompt: str) -> str:

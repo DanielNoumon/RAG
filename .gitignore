@@ -39,5 +39,11 @@ src/document_rag.egg-info/
 # IDE settings
 .vscode/
 
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
+# Build/debug logs
+evaluation/_colbert_build_log.txt
+
 # Deprecated
 deprecated/
