@@ -22,6 +22,9 @@ dependencies = [
     "transformers>=4.51.0",
     "torch==2.6.0",
     "accelerate>=0.30.0",
+    "pylate>=1.1.5",
+    "voyager>=2.1.0",
+    "sentencepiece>=0.2.1",
 ]
 
 [tool.setuptools]

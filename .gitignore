@@ -29,6 +29,9 @@ Thumbs.db
 # HNSW index binary
 *.bin
 
+# ColBERT cached embeddings
+data/colbert/*.pkl
+
 # Build artifacts
 build/
 src/document_rag.egg-info/
