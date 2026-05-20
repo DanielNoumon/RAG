@@ -154,7 +154,7 @@ if __name__ == "__main__":
         # Path to SPLADE index. If the file exists it is loaded (fast).
         # If not, the index is built from scratch and saved here.
         # Set to None to always encode fresh without saving.
-        "splade_index_file": "data/index/splade_index.json",
+        "splade_index_file": "data/index/splade/splade_index.json",
 
         # Model
         "model_name": "naver/splade-cocondenser-ensembledistil",

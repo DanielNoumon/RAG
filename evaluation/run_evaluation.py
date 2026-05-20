@@ -678,14 +678,14 @@ if __name__ == "__main__":
 
         # Data files
         "chunks_file": "data/chunks/DSL_handboek_mei_2024_chunks.json",
-        "embeddings_hnsw": "data/index/embeddings_hnsw.json",
-        "embeddings_knn": "data/index/embeddings_knn.json",
-        "splade_index_file": "data/index/splade_index.json",
+        "embeddings_hnsw": "data/index/embeddings/embeddings_hnsw.json",
+        "embeddings_knn": "data/index/embeddings/embeddings_knn.json",
+        "splade_index_file": "data/index/splade/splade_index.json",
         "splade_nl_model": "sparse-encoder/splade-robbert-dutch-base-v1",
-        "splade_nl_index_file": "data/index/splade_dutch_index.json",
+        "splade_nl_index_file": "data/index/splade/splade_dutch_index.json",
         "e5nl_model": "clips/e5-large-trm-nl",
-        "embeddings_e5nl_hnsw": "data/index/embeddings_e5nl_hnsw.json",
-        "embeddings_e5nl_knn": "data/index/embeddings_e5nl_knn.json",
+        "embeddings_e5nl_hnsw": "data/index/embeddings/embeddings_e5nl_hnsw.json",
+        "embeddings_e5nl_knn": "data/index/embeddings/embeddings_e5nl_knn.json",
 
         # Which methods to evaluate
         "run_bm25": True,

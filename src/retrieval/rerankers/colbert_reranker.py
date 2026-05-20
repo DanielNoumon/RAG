@@ -13,7 +13,7 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
 
-DEFAULT_CACHE_PATH = "data/colbert/colbertv2_doc_embeddings.pkl"
+DEFAULT_CACHE_PATH = "data/index/colbert/colbertv2_doc_embeddings.pkl"
 
 
 class ColBERTReranker:

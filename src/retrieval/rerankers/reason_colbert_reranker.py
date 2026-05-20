@@ -18,7 +18,7 @@ import torch
 import torch.nn.functional as F
 
 DEFAULT_MODEL = "lightonai/Reason-ModernColBERT"
-DEFAULT_CACHE_PATH = "data/colbert/doc_embeddings.pkl"
+DEFAULT_CACHE_PATH = "data/index/colbert/doc_embeddings.pkl"
 
 
 class ReasonColBERTReranker:

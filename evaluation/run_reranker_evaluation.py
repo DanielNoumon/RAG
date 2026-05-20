@@ -214,7 +214,7 @@ def main(config: Dict[str, Any]):
             ),
             cache_path=config.get(
                 "colbert_cache",
-                "data/colbert/colbertv2_doc_embeddings.pkl",
+                "data/index/colbert/colbertv2_doc_embeddings.pkl",
             ),
             top_n=top_n,
         )
@@ -238,7 +238,7 @@ def main(config: Dict[str, Any]):
             ),
             cache_path=config.get(
                 "reason_colbert_cache",
-                "data/colbert/doc_embeddings.pkl",
+                "data/index/colbert/doc_embeddings.pkl",
             ),
             top_n=top_n,
         )
@@ -262,7 +262,7 @@ def main(config: Dict[str, Any]):
             ),
             cache_path=config.get(
                 "agent_moderncolbert_cache",
-                "data/colbert/agent_moderncolbert_doc_embeddings.pkl",
+                "data/index/colbert/agent_moderncolbert_doc_embeddings.pkl",
             ),
             top_n=top_n,
         )
@@ -290,7 +290,7 @@ def main(config: Dict[str, Any]):
                 ),
                 cache_path=config.get(
                     "jina_colbert_cache",
-                    "data/colbert/jina_colbertv2_doc_embeddings.pkl",
+                    "data/index/colbert/jina_colbertv2_doc_embeddings.pkl",
                 ),
                 top_n=top_n,
             )

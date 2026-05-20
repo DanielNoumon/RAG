@@ -43,7 +43,10 @@ A Retrieval-Augmented Generation (RAG) pipeline for querying Dutch reference doc
 ├── data/
 │   ├── documents/              # Source documents (PDFs, TXT)
 │   ├── chunks/                 # Chunked documents (JSON)
-│   ├── index/                  # Vector indexes (KNN/HNSW) + SPLADE sparse indexes
+│   ├── index/                  # All search indexes
+│   │   ├── embeddings/         # Dense vector indexes (KNN/HNSW per model)
+│   │   ├── splade/             # SPLADE sparse neural indexes
+│   │   └── colbert/            # ColBERT pre-cached document embeddings (pkl)
 │   ├── eval_results/           # Evaluation output (JSON, timestamped)
 │   └── test_sets/              # Curated evaluation test sets
 ├── pyproject.toml              # Project config + dependencies (uv)

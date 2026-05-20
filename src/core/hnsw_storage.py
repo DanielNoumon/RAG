@@ -8,8 +8,8 @@ from typing import List, Dict, Any, Optional
 class HNSWStorageManager:
     """HNSW-based vector storage for efficient similarity search"""
     
-    def __init__(self, storage_file: str = "data/index/embeddings_hnsw.json",
-                 index_file: str = "data/index/hnsw_index.bin",
+    def __init__(self, storage_file: str = "data/index/embeddings/embeddings_hnsw.json",
+                 index_file: str = "data/index/embeddings/hnsw_index.bin",
                  dim: int = 384,  # Sentence transformer dimension
                  max_elements: int = 10000,
                  ef_construction: int = 50,  # Reduced for small datasets

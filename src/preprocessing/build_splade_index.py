@@ -54,7 +54,7 @@ if __name__ == "__main__":
         "chunks_file": "data/chunks/DSL_handboek_mei_2024_chunks.json",
 
         # Output: where to save the SPLADE sparse index
-        "index_output": "data/index/splade_index.json",
+        "index_output": "data/index/splade/splade_index.json",
 
         # Model (HuggingFace model id)
         # Options:

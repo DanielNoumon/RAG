@@ -18,7 +18,7 @@ import torch.nn.functional as F
 
 DEFAULT_MODEL = "jinaai/jina-colbert-v2"
 DEFAULT_CACHE_PATH = (
-    "data/colbert/jina_colbertv2_doc_embeddings.pkl"
+    "data/index/colbert/jina_colbertv2_doc_embeddings.pkl"
 )
 EXPECTED_DIM = 128
 

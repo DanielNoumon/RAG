@@ -19,7 +19,7 @@ import torch.nn.functional as F
 
 DEFAULT_MODEL = "lightonai/Agent-ModernColBERT"
 DEFAULT_CACHE_PATH = (
-    "data/colbert/agent_moderncolbert_doc_embeddings.pkl"
+    "data/index/colbert/agent_moderncolbert_doc_embeddings.pkl"
 )
 
 

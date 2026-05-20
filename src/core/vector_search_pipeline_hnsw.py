@@ -8,7 +8,7 @@ from core.azure_openai import AzureOpenAIClient
 class VectorSearchPipelineHNSW:
     """RAG Pipeline using HNSW for efficient vector search"""
     
-    def __init__(self, storage_file: str = "data/index/embeddings_hnsw.json"):
+    def __init__(self, storage_file: str = "data/index/embeddings/embeddings_hnsw.json"):
         self.embedding_manager = EmbeddingManager()
         self.storage_manager = HNSWStorageManager(storage_file)
         self.openai_client = AzureOpenAIClient()
