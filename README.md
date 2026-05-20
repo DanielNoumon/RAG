@@ -70,6 +70,8 @@ Retrieval is structured as a two-stage pipeline: a **first-pass retriever** narr
 
 Dense indexes support both HNSW (approximate, fast) and exhaustive KNN backends. Hybrid fusion supports RRF or weighted combination of any sparse + dense pair.
 
+> **Multi-source candidate pooling** — An alternative to RRF is to take the top-K results from each retriever independently (dense, BM25, SPLADE) and union them into a single candidate set before reranking. This preserves the distinct strengths of each method — semantic recall from dense, exact keyword matches from BM25, and vocabulary expansion from SPLADE — rather than collapsing them into a single ranked list. The reranker then handles deduplication and final ordering.
+
 ### Stage 2 — Reranking
 
 | Reranker | Type | Speed | Notes |
