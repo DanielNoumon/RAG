@@ -1,6 +1,21 @@
-# Document RAG Pipeline
+# Dutch RAG Experimentation Toolkit
 
-A Retrieval-Augmented Generation (RAG) pipeline for querying Dutch reference documents using Azure OpenAI, multiple retrieval strategies (vector search, BM25, SPLADE sparse retrieval), hybrid fusion (RRF), rerankers, and a systematic evaluation framework to compare retrieval effectiveness.
+A modular toolkit for experimenting with Retrieval-Augmented Generation (RAG) on **Dutch documents**. The goal is to systematically compare retrieval strategies — from simple keyword search to neural sparse retrieval and late-interaction reranking — and measure their effectiveness on Dutch-language queries using a curated evaluation framework.
+
+The pipeline is structured around two retrieval stages:
+
+**Stage 1 — First-pass retrieval** narrows the corpus to a candidate set:
+- **Dense bi-encoder** — semantic vector search (HNSW / exhaustive KNN) using Dutch-tuned or multilingual embedding models
+- **Sparse: BM25** — classical TF-IDF keyword retrieval
+- **Sparse: SPLADE** — learned sparse neural retrieval with vocabulary expansion; Dutch and English variants
+- **Hybrid** — reciprocal rank fusion (RRF) of any sparse + dense pair
+
+**Stage 2 — Reranking** re-scores the candidate set for precision:
+- **Cross-encoder** — pointwise query-document scoring; fast and accurate
+- **Late-interaction (ColBERT)** — MaxSim token-level interaction; multiple variants including Dutch-tuned ModernColBERT models
+- **LLM reranker** — GPT-4o-mini scores and reasons over candidates; highest accuracy, highest cost
+
+Results across all configurations are benchmarked with standard IR metrics (MRR, MAP, NDCG@k, Recall@k) on a curated Dutch test set.
 
 ## Project Structure
 
@@ -105,36 +120,49 @@ This benchmarks all retrieval methods on the curated test set and reports:
 - Per-question-type breakdown (factual, paraphrase, multi-aspect)
 - Results saved to `data/eval_results/`
 
-### Search Methods
+### Stage 1 — First-pass Retrieval
 
-| Method | Description | MRR |
-|--------|-------------|-----|
-| **E5-NL (HNSW/KNN)** | Dutch-finetuned E5-large dense retrieval | 0.85 |
-| **SPLADE-NL** | Dutch SPLADE sparse neural retrieval | 0.82 |
-| **SPLADE-NL+E5-NL** | RRF hybrid of two strong retrievers | 0.85 |
-| **SPLADE** | English SPLADE (naver/splade-cocondenser) | 0.60 |
-| **Vector (HNSW/KNN)** | MiniLM multilingual dense retrieval | 0.47 |
-| **BM25** | TF-IDF keyword retrieval | 0.40 |
-| **Hybrid (sparse+dense)** | RRF fusion of any sparse + dense pair | varies |
+#### Dense bi-encoder
 
-### Embedding Models
+| Model | Dim | Language | MRR | Notes |
+|-------|-----|----------|-----|-------|
+| `clips/e5-large-trm-nl` | 1024 | Dutch | 0.85 | Best performing |
+| `paraphrase-multilingual-MiniLM-L12-v2` | 384 | Multilingual | 0.47 | Default, fast |
 
-| Model | Dim | Language | Notes |
-|-------|-----|----------|-------|
-| `paraphrase-multilingual-MiniLM-L12-v2` | 384 | Multilingual | Default, fast |
-| `clips/e5-large-trm-nl` | 1024 | Dutch | Best performing |
-| `sparse-encoder/splade-robbert-dutch-base-v1` | sparse | Dutch | SPLADE variant |
-| `naver/splade-cocondenser-ensembledistil` | sparse | English | Default SPLADE |
+Both models support HNSW (approximate, fast) and exhaustive KNN backends.
 
-### Rerankers
+#### Sparse: BM25
 
-| Reranker | Speed | Accuracy | Use Case |
-|----------|-------|----------|----------|
-| **Cross-Encoder** | Fast (~2.5s) | Good | Default choice, best speed/accuracy balance |
-| **ColBERT** | Medium (~4s) | Good | Late interaction, good for longer contexts |
-| **LLM** | Slow (~40s) | Excellent | Most accurate, supports reasoning, expensive |
+| Method | MRR | Notes |
+|--------|-----|-------|
+| BM25 | 0.40 | TF-IDF keyword retrieval, no index build required |
 
-Configure in run scripts via:
+#### Sparse: SPLADE
+
+| Model | Language | MRR | Notes |
+|-------|----------|-----|-------|
+| `sparse-encoder/splade-robbert-dutch-base-v1` | Dutch | 0.82 | Best sparse model for Dutch |
+| `naver/splade-cocondenser-ensembledistil` | English | 0.60 | Default SPLADE |
+
+#### Hybrid fusion
+
+| Combination | MRR | Notes |
+|-------------|-----|-------|
+| SPLADE-NL + E5-NL (RRF) | 0.85 | Fusing two strong Dutch retrievers |
+| Any sparse + dense pair | varies | Configurable via RRF or weighted fusion |
+
+### Stage 2 — Reranking
+
+| Reranker | Type | Speed | MRR boost | Notes |
+|----------|------|-------|-----------|-------|
+| **Cross-Encoder** | Pointwise | Fast (~2.5s) | +moderate | Best speed/accuracy balance |
+| **ColBERT v2** | Late-interaction | Medium (~4s) | +moderate | MaxSim token scoring |
+| **Reason-ModernColBERT** | Late-interaction | Medium | +good | Dutch ModernBERT backbone |
+| **Agent-ModernColBERT** | Late-interaction | Medium | +good | Dutch ModernBERT backbone |
+| **Jina ColBERT v2** | Late-interaction | Medium | +moderate | Multilingual, 128-dim |
+| **LLM (GPT-4o-mini)** | Generative | Slow (~40s) | +excellent | Reasoning support, expensive |
+
+Configure reranking in run scripts via:
 ```python
 "rerank": True,
 "reranker_type": "cross_encoder",  # Options: "llm", "cross_encoder", "colbert"
