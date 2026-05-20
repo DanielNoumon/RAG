@@ -1,4 +1,4 @@
-"""Hybrid retrieval combining vector search and BM25 keyword search."""
+"""Hybrid retrieval combining vector search, BM25, and optionally SPLADE."""
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 
@@ -9,14 +9,21 @@ from core.json_storage import JSONStorageManager
 
 
 class HybridRetriever:
-    """Combines vector similarity search with BM25 keyword search.
+    """Combines dense vector search, BM25, and optionally SPLADE.
 
-    Supports two fusion strategies:
-      - **RRF** (Reciprocal Rank Fusion): merges ranked lists using
-        score = sum(1 / (k + rank)) per method.  Robust, no score
-        normalisation needed.  Good default.
-      - **weighted**: min-max normalises both score sets to [0, 1],
-        then combines as  alpha * vector + (1 - alpha) * bm25.
+    Supports three fusion strategies:
+
+    - **rrf** (Reciprocal Rank Fusion): merges ranked lists via
+      score = sum(1 / (k + rank)).  Robust default, no score
+      normalisation needed.
+    - **weighted**: min-max normalises scores to [0, 1], then combines
+      as  alpha * vector + (1 - alpha) * bm25.
+    - **pool**: takes the top-K results from each retriever independently
+      and unions them into a single candidate set.  Preserves the distinct
+      strengths of each method — semantic recall (dense), exact keyword
+      matches (BM25), and vocabulary expansion (SPLADE) — without collapsing
+      them into a single ranked list.  Best used upstream of a reranker that
+      handles final ordering.
 
     Parameters
     ----------
@@ -28,6 +35,13 @@ class HybridRetriever:
         ``"hnsw"`` or ``"knn"`` — which storage to use.
     bm25_k1, bm25_b : float
         BM25 tuning parameters forwarded to BM25Retriever.
+    splade_index_path : str | None
+        Path to a pre-built SPLADE index.  When provided, SPLADE is loaded
+        and becomes available as a third source in ``fusion="pool"`` (and
+        also in ``"rrf"``).
+    splade_model : str | None
+        HuggingFace model id for SPLADE.  Defaults to
+        ``SPLADERetriever.DEFAULT_MODEL`` when ``None``.
     """
 
     def __init__(
@@ -38,14 +52,15 @@ class HybridRetriever:
         bm25_k1: float = 1.5,
         bm25_b: float = 0.75,
         overlap_boost: Optional[float] = None,
+        splade_index_path: Optional[str] = None,
+        splade_model: Optional[str] = None,
     ):
         self.overlap_boost = overlap_boost
-        # BM25 (keyword)
-        self.bm25 = BM25Retriever(
-            chunks_path, k1=bm25_k1, b=bm25_b
-        )
 
-        # Vector (semantic)
+        # BM25 (keyword)
+        self.bm25 = BM25Retriever(chunks_path, k1=bm25_k1, b=bm25_b)
+
+        # Dense vector (semantic)
         self.embedding_mgr = EmbeddingManager()
         if vector_backend == "hnsw":
             self.vector_store = HNSWStorageManager(embeddings_path)
@@ -56,8 +71,18 @@ class HybridRetriever:
                 f"Unknown vector_backend: {vector_backend}. "
                 "Use 'hnsw' or 'knn'."
             )
-
         self.vector_backend = vector_backend
+
+        # SPLADE — optional third source
+        self.splade = None
+        if splade_index_path:
+            from retrieval.splade import SPLADERetriever
+            self.splade = SPLADERetriever(
+                chunks_path=chunks_path,
+                model_name=splade_model or SPLADERetriever.DEFAULT_MODEL,
+                index_path=splade_index_path,
+            )
+            print(f"HybridRetriever: SPLADE loaded from {splade_index_path}")
 
     # ------------------------------------------------------------------
     # Public API
@@ -72,6 +97,8 @@ class HybridRetriever:
         rrf_k: int = 60,
         vector_top_k: Optional[int] = None,
         bm25_top_k: Optional[int] = None,
+        splade_top_k: Optional[int] = None,
+        pool_k_per_source: Optional[Any] = None,
         overlap_boost: Optional[float] = None,
         vector_threshold: float = 0.0,
     ) -> List[Dict[str, Any]]:
@@ -82,71 +109,105 @@ class HybridRetriever:
         query : str
             The search query.
         top_k : int
-            Number of final results to return.
+            Maximum number of results returned by this method.  Applied
+            consistently across all fusion modes.  For ``fusion="pool"``
+            this caps the deduplicated pool; set it >= sum of
+            ``pool_k_per_source`` values if you want the full pool to
+            reach a downstream reranker.
         fusion : str
-            ``"rrf"`` for Reciprocal Rank Fusion, ``"weighted"`` for
-            normalised score combination.
+            ``"rrf"`` — Reciprocal Rank Fusion across all active sources.
+            ``"weighted"`` — normalised score combination (dense + BM25 only).
+            ``"pool"`` — take top-K from each source independently and union
+            them.  Intended as the candidate set for a downstream reranker.
         alpha : float
-            Only used when fusion="weighted".  Weight for vector score;
-            (1 - alpha) is used for BM25.
+            Weight for vector score in ``fusion="weighted"``.
         rrf_k : int
-            Only used when fusion="rrf".  Smoothing constant (default 60,
-            the standard value from the RRF paper).
-        vector_top_k, bm25_top_k : int | None
-            How many candidates to fetch from each method before fusion.
-            Defaults to ``top_k * 3`` to give the fuser enough candidates.
+            Smoothing constant for ``fusion="rrf"`` (default 60).
+        vector_top_k, bm25_top_k, splade_top_k : int | None
+            Per-source candidate counts for rrf/weighted.  Default: top_k * 3.
+        pool_k_per_source : int | dict[str, int] | None
+            Controls how many candidates each source contributes in
+            ``fusion="pool"``.
+
+            - **int** — same budget for every source.
+              E.g. ``20`` → top-20 from dense, top-20 from BM25,
+              top-20 from SPLADE (if active).
+            - **dict** — per-source budgets, enabling weighted
+              contribution.  Keys are ``"dense"``, ``"bm25"``,
+              ``"splade"``.  Missing sources fall back to ``top_k``.
+              E.g. ``{"dense": 30, "bm25": 10, "splade": 10}`` yields
+              a 60% / 20% / 20% split over a 50-chunk candidate pool.
+
+            Default (``None``): ``top_k`` per source.  The total pool
+            size before reranking is up to the sum of all budgets
+            (reduced by duplicate chunks found by multiple sources).
         overlap_boost : float | None
-            Multiplicative boost for docs found by both methods.
-            Overrides the instance-level setting.  E.g. 1.2 = 20%% boost.
-            ``None`` means no boost.
+            Multiplicative boost for docs found by multiple methods (rrf /
+            weighted only).  E.g. 1.2 = 20% boost.
         """
         candidate_k = top_k * 3
         v_k = vector_top_k or candidate_k
         b_k = bm25_top_k or candidate_k
+        s_k = splade_top_k or candidate_k
         boost = overlap_boost if overlap_boost is not None else self.overlap_boost
 
-        # Retrieve from both in parallel
-        vector_results = []
-        bm25_results = []
+        # --- Retrieve from all sources ---
+        futures = {}
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures["dense"] = executor.submit(
+                self._vector_search, query, v_k, vector_threshold
+            )
+            futures["bm25"] = executor.submit(self.bm25.search, query, b_k)
+            if self.splade is not None:
+                futures["splade"] = executor.submit(
+                    self.splade.search, query, s_k
+                )
 
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            v_future = pool.submit(self._vector_search, query, v_k, vector_threshold)
-            b_future = pool.submit(self.bm25.search, query, b_k)
+        vector_results = futures["dense"].result()
+        bm25_results = futures["bm25"].result()
+        splade_results = futures["splade"].result() if "splade" in futures else []
 
-            for future in as_completed([v_future, b_future]):
-                if future is v_future:
-                    vector_results = future.result()
-                else:
-                    bm25_results = future.result()
-
-        # Fuse
+        # --- Fuse ---
         if fusion == "rrf":
             fused = self._rrf_fusion(
-                vector_results, bm25_results,
+                vector_results, bm25_results, splade_results,
                 k=rrf_k, overlap_boost=boost,
             )
+            return fused[:top_k]
         elif fusion == "weighted":
             fused = self._weighted_fusion(
                 vector_results, bm25_results,
                 alpha=alpha, overlap_boost=boost,
             )
+            return fused[:top_k]
+        elif fusion == "pool":
+            budgets = self._resolve_pool_budgets(
+                pool_k_per_source, top_k,
+                has_splade=bool(splade_results),
+            )
+            sources = {
+                "dense": vector_results[:budgets["dense"]],
+                "bm25": bm25_results[:budgets["bm25"]],
+            }
+            if splade_results:
+                sources["splade"] = splade_results[:budgets["splade"]]
+            pool = self._pool_fusion(sources)
+            return pool[:top_k]
         else:
             raise ValueError(
-                f"Unknown fusion: {fusion}. Use 'rrf' or 'weighted'."
+                f"Unknown fusion: {fusion!r}. Use 'rrf', 'weighted', or 'pool'."
             )
 
-        return fused[:top_k]
-
     def get_stats(self) -> Dict[str, Any]:
-        """Return statistics from both retrieval backends."""
-        return {
+        """Return statistics from all active retrieval backends."""
+        stats = {
             "bm25": self.bm25.get_stats(),
             "vector_backend": self.vector_backend,
-            "vector_docs": self.vector_store.get_stats().get(
-                "total_documents", 0
-            ),
+            "vector_docs": self.vector_store.get_stats().get("total_documents", 0),
             "embedding_dim": self.embedding_mgr.get_embedding_dimension(),
+            "splade": self.splade.get_stats() if self.splade else None,
         }
+        return stats
 
     # ------------------------------------------------------------------
     # Vector search helper
@@ -178,72 +239,115 @@ class HybridRetriever:
     def _rrf_fusion(
         vector_results: List[Dict],
         bm25_results: List[Dict],
+        splade_results: Optional[List[Dict]] = None,
         k: int = 60,
         overlap_boost: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """Reciprocal Rank Fusion (Cormack et al., 2009).
 
-        score(d) = sum over methods of  1 / (k + rank_i)
-        where rank_i is the 1-based rank of document d in method i.
-        If overlap_boost is set, docs found by both methods get a
+        score(d) = sum over methods of 1 / (k + rank_i).
+        Supports two or three sources (dense, BM25, SPLADE).
+        If overlap_boost is set, docs found by multiple methods get a
         multiplicative boost (e.g. 1.2 = 20% boost).
-        
-        NOTE: 
-        - RRF uses RANKS only, not score magnitudes
-        - Raw RRF scores kept (not normalized) - this is a rank fusion heuristic
-        - Higher fusion scores indicate better rank consensus across methods
-        - Use scores for sorting, not as absolute relevance measures
+
+        RRF uses ranks only, not score magnitudes.
         """
         scores: Dict[str, Dict[str, Any]] = {}
 
-        for rank, doc in enumerate(vector_results, start=1):
-            key = doc["content"]
-            if key not in scores:
-                scores[key] = {
-                    "content": doc["content"],
-                    "metadata": doc.get("metadata", {}),
-                    "fusion_score": 0.0,
-                    "vector_search_rank": None,
-                    "bm25_search_rank": None,
-                    "vector_similarity": 0.0,
-                    "bm25_score": 0.0,
-                }
-            scores[key]["fusion_score"] += 1.0 / (k + rank)
-            scores[key]["vector_search_rank"] = rank
-            scores[key]["vector_similarity"] = doc["score"]
+        sources = [
+            ("dense", vector_results, "vector_search_rank", "vector_similarity"),
+            ("bm25", bm25_results, "bm25_search_rank", "bm25_score"),
+        ]
+        if splade_results:
+            sources.append(("splade", splade_results, "splade_rank", "splade_score"))
 
-        for rank, doc in enumerate(bm25_results, start=1):
-            key = doc["content"]
-            if key not in scores:
-                scores[key] = {
-                    "content": doc["content"],
-                    "metadata": doc.get("metadata", {}),
-                    "fusion_score": 0.0,
-                    "vector_search_rank": None,
-                    "bm25_search_rank": None,
-                    "vector_similarity": 0.0,
-                    "bm25_score": 0.0,
-                }
-            scores[key]["fusion_score"] += 1.0 / (k + rank)
-            scores[key]["bm25_search_rank"] = rank
-            scores[key]["bm25_score"] = doc["score"]
+        all_rank_keys = [rk for _, _, rk, _ in sources]
 
-        # Apply overlap boost to docs found by both methods
+        for _name, results, rank_key, score_key in sources:
+            for rank, doc in enumerate(results, start=1):
+                key = doc["content"]
+                if key not in scores:
+                    scores[key] = {
+                        "content": doc["content"],
+                        "metadata": doc.get("metadata", {}),
+                        "fusion_score": 0.0,
+                        **{rk: None for rk in all_rank_keys},
+                        "vector_similarity": 0.0,
+                        "bm25_score": 0.0,
+                        "splade_score": 0.0,
+                    }
+                scores[key]["fusion_score"] += 1.0 / (k + rank)
+                scores[key][rank_key] = rank
+                scores[key][score_key] = doc.get("score", 0.0)
+
         if overlap_boost is not None:
             for doc in scores.values():
-                if doc["vector_search_rank"] is not None and doc["bm25_search_rank"] is not None:
+                n_sources_found = sum(
+                    1 for rk in all_rank_keys if doc.get(rk) is not None
+                )
+                if n_sources_found > 1:
                     doc["fusion_score"] *= overlap_boost
 
-        fused = sorted(
-            scores.values(),
-            key=lambda x: x["fusion_score"],
-            reverse=True,
-        )
-        
-        # Round scores for readability (keep raw RRF values)
+        fused = sorted(scores.values(), key=lambda x: x["fusion_score"], reverse=True)
         for doc in fused:
             doc["fusion_score"] = round(doc["fusion_score"], 6)
         return fused
+
+    @staticmethod
+    def _resolve_pool_budgets(
+        pool_k_per_source: Any,
+        default: int,
+        has_splade: bool,
+    ) -> Dict[str, int]:
+        """Resolve pool budgets to a per-source dict.
+
+        Accepts:
+        - ``None``  → ``default`` for every active source.
+        - ``int``   → that value for every active source.
+        - ``dict``  → used as-is; missing keys fall back to ``default``.
+
+        Returns a dict with keys ``"dense"``, ``"bm25"``, ``"splade"``.
+        """
+        sources = ["dense", "bm25"] + (["splade"] if has_splade else [])
+        if pool_k_per_source is None or isinstance(pool_k_per_source, int):
+            k = pool_k_per_source or default
+            return {s: k for s in sources}
+        if isinstance(pool_k_per_source, dict):
+            return {s: pool_k_per_source.get(s, default) for s in sources}
+        raise TypeError(
+            f"pool_k_per_source must be int, dict, or None — got {type(pool_k_per_source)}"
+        )
+
+    @staticmethod
+    def _pool_fusion(
+        sources: Dict[str, List[Dict]],
+    ) -> List[Dict[str, Any]]:
+        """Multi-source candidate pooling.
+
+        Unions the already-budgeted results from each source into a single
+        deduplicated candidate set.  Chunks found by multiple sources are
+        merged into one entry and annotated with every source name that
+        retrieved them.
+
+        The returned list is not ranked — it is intended as the input to
+        a downstream reranker that produces the final ordering.
+        """
+        seen: Dict[str, Dict[str, Any]] = {}
+
+        for name, results in sources.items():
+            for doc in results:
+                key = doc["content"]
+                if key not in seen:
+                    seen[key] = {
+                        "content": doc["content"],
+                        "metadata": doc.get("metadata", {}),
+                        "score": doc.get("score", 0.0),
+                        "sources": [name],
+                    }
+                elif name not in seen[key]["sources"]:
+                    seen[key]["sources"].append(name)
+
+        return list(seen.values())
 
     @staticmethod
     def _weighted_fusion(

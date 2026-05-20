@@ -68,9 +68,31 @@ Retrieval is structured as a two-stage pipeline: a **first-pass retriever** narr
 | Sparse — BM25 | — | 0.40 | TF-IDF keyword retrieval |
 | Hybrid — RRF | SPLADE-NL + E5-NL | 0.85 | Fuses two strong Dutch retrievers |
 
-Dense indexes support both HNSW (approximate, fast) and exhaustive KNN backends. Hybrid fusion supports RRF or weighted combination of any sparse + dense pair.
+Dense indexes support both HNSW (approximate, fast) and exhaustive KNN backends.
 
-> **Multi-source candidate pooling** — An alternative to RRF is to take the top-K results from each retriever independently (dense, BM25, SPLADE) and union them into a single candidate set before reranking. This preserves the distinct strengths of each method — semantic recall from dense, exact keyword matches from BM25, and vocabulary expansion from SPLADE — rather than collapsing them into a single ranked list. The reranker then handles deduplication and final ordering.
+Three fusion strategies are available in `HybridRetriever`:
+
+| Strategy | Description |
+|----------|-------------|
+| `rrf` | Reciprocal Rank Fusion — merges ranked lists by position; works with 2 or 3 sources |
+| `weighted` | Normalised score combination — `alpha * dense + (1-alpha) * bm25` |
+| `pool` | Takes top-K from each source independently and unions them into a single deduplicated candidate set; intended as input to a reranker that handles final ordering |
+
+**Pool mode** preserves the distinct strengths of each retriever rather than collapsing them into one ranked list: dense covers semantic recall, BM25 covers exact keyword matches, SPLADE covers vocabulary expansion. The candidate budget per source is controlled by `pool_k_per_source`:
+
+```python
+# Equal budget — every source contributes the same number of candidates
+"pool_k_per_source": 20          # → up to 60 unique chunks (3 sources × 20)
+
+# Weighted budget — control the mix explicitly
+"pool_k_per_source": {"dense": 30, "bm25": 10, "splade": 10}  # → up to 50 unique chunks, 60/20/20 split
+```
+
+The pool is deduplicated (chunks found by multiple sources are merged and annotated with all source names) and returned unranked — the downstream reranker handles final ordering.
+
+**Important:** `top_k` is applied as a cap to the final pool, consistent with `rrf` and `weighted`. To pass the full pool to the reranker, set `top_k >= sum(pool_k_per_source)`. For the example above with budgets `{30, 10, 10}`, use `top_k=50`.
+
+Add SPLADE as a third source via `splade_index_path` in the run script config.
 
 ### Stage 2 — Reranking
 

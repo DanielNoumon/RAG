@@ -4,7 +4,7 @@ import os
 import numpy as np
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import List
 
 from retrieval.hybrid import HybridRetriever
 from core.azure_openai import AzureOpenAIClient
@@ -32,17 +32,23 @@ def main(config):
     reranker = None
     if config.get("rerank", False):
         reranker_type = config.get("reranker_type", "llm").lower()
-        
+
         if reranker_type == "cross_encoder":
-            from retrieval.rerankers.cross_encoder_reranker import CrossEncoderReranker
+            from retrieval.rerankers.cross_encoder_reranker import (
+                CrossEncoderReranker,
+            )
             reranker = CrossEncoderReranker(
-                model_name=config.get("rerank_model", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+                model_name=config.get(
+                    "rerank_model", "cross-encoder/ms-marco-MiniLM-L-6-v2"
+                ),
                 top_n=config.get("rerank_top_n", 5),
             )
         elif reranker_type == "colbert":
             from retrieval.rerankers.colbert_reranker import ColBERTReranker
             reranker = ColBERTReranker(
-                model_name=config.get("rerank_model", "colbert-ir/colbertv2.0"),
+                model_name=config.get(
+                    "rerank_model", "colbert-ir/colbertv2.0"
+                ),
                 top_n=config.get("rerank_top_n", 5),
             )
         elif reranker_type == "llm":
@@ -50,7 +56,9 @@ def main(config):
             reranker = Reranker(
                 model_name=config.get("rerank_model", None),
                 top_n=config.get("rerank_top_n", 5),
-                include_reasoning=config.get("rerank_include_reasoning", False),
+                include_reasoning=config.get(
+                    "rerank_include_reasoning", False
+                ),
             )
         else:
             raise ValueError(
@@ -64,23 +72,32 @@ def main(config):
         vector_backend=config.get("vector_backend", "hnsw"),
         bm25_k1=config.get("k1", 1.5),
         bm25_b=config.get("b", 0.75),
+        splade_index_path=config.get("splade_index_path"),
+        splade_model=config.get("splade_model"),
     )
 
     stats = retriever.get_stats()
     fusion = config.get("fusion", "rrf")
     alpha = config.get("alpha", 0.5)
 
+    sources_active = ["dense", "bm25"] + (
+        ["splade"] if stats["splade"] else []
+    )
     print("=" * 60)
-    print("Document RAG Test - Hybrid (Vector + BM25)")
+    print(f"Document RAG Test - Hybrid ({' + '.join(sources_active)})")
     print("=" * 60)
-    print(f"Fusion: {fusion}")
+    print(f"Fusion:         {fusion}")
     if fusion == "weighted":
-        print(f"Alpha: {alpha} (vector={alpha}, bm25={1 - alpha})")
+        print(f"Alpha:          {alpha} (vector={alpha}, bm25={1 - alpha})")
+    if fusion == "pool":
+        pool_budget = config.get("pool_k_per_source", config["top_k"])
+        print(f"Pool K/source:  {pool_budget}")
     print(f"Vector backend: {config.get('vector_backend', 'hnsw')}")
-    print(f"Vector docs: {stats['vector_docs']}")
-    print(f"BM25 chunks: {stats['bm25']['total_chunks']}")
-    print(f"BM25 vocab: {stats['bm25']['vocabulary_size']}")
-    print(f"Top K: {config['top_k']}")
+    print(f"Vector docs:    {stats['vector_docs']}")
+    print(f"BM25 chunks:    {stats['bm25']['total_chunks']}")
+    if stats["splade"]:
+        print(f"SPLADE chunks:  {stats['splade']['total_chunks']}")
+    print(f"Top K:          {config['top_k']}")
     print("-" * 60)
 
     openai_client = (
@@ -100,6 +117,7 @@ def main(config):
             fusion=fusion,
             alpha=alpha,
             rrf_k=config.get("rrf_k", 60),
+            pool_k_per_source=config.get("pool_k_per_source"),
             overlap_boost=config.get("overlap_boost"),
             vector_threshold=config.get("vector_threshold", 0.0),
         )
@@ -133,9 +151,13 @@ def main(config):
                 
                 # Add reranker scores if available
                 if "rerank_score" in r:
-                    display_parts.append(f"rerank_score={r['rerank_score']:.3f}")
+                    display_parts.append(
+                        f"rerank_score={r['rerank_score']:.3f}"
+                    )
                 if "reasoning" in r:
-                    display_parts.append(f"reasoning='{r['reasoning'][:50]}...'")
+                    display_parts.append(
+                        f"reasoning='{r['reasoning'][:50]}...'"
+                    )
                 
                 print("  " + "  ".join(display_parts))
                 print(f"      {r['content'][:200]}...")
@@ -196,7 +218,9 @@ def main(config):
                 rerank_data = reranker_data_map.get(r["content"], {})
                 chunk_data["rerank_score"] = rerank_data.get("rerank_score")
                 chunk_data["reasoning"] = rerank_data.get("reasoning")
-                chunk_data["selected_by_reranker"] = r["content"] in reranked_contents
+                chunk_data["selected_by_reranker"] = (
+                    r["content"] in reranked_contents
+                )
             
             initial_chunks_data.append(chunk_data)
         
@@ -278,9 +302,13 @@ def main(config):
         traceback.print_exc()
         # Try saving without conversion as fallback
         try:
-            fallback_path = output_path.with_name(output_path.stem + "_fallback.json")
+            fallback_path = output_path.with_name(
+                output_path.stem + "_fallback.json"
+            )
             with open(fallback_path, "w", encoding="utf-8") as f:
-                json.dump(output, f, indent=2, ensure_ascii=False, default=str)
+                json.dump(
+                    output, f, indent=2, ensure_ascii=False, default=str
+                )
             if save_verbose:
                 print("Fallback file saved")
         except Exception as e2:
@@ -296,10 +324,24 @@ if __name__ == "__main__":
         "vector_backend": "hnsw",  # "hnsw" = fast approximate search, "knn" = exact search (slower)
 
         # Fusion strategy
-        "fusion": "rrf",    # "rrf" or "weighted" -- both (0-1 normalized scores)
-        "rrf_k": 60,        # RRF smoothing constant (default 60). Higher = flatter ranking, lower = top ranks dominate
-        # "alpha": 0.5,       # used in weighted only mode: vector weight. alpha=0.7 → 70% vector, 30% BM25 (trust semantic meaning more)
-        # "overlap_boost": 1.2,  # Optional: boost docs found by both methods (e.g. 1.2 = 20%)
+        # "rrf"     — Reciprocal Rank Fusion across all active sources (default)
+        # "weighted" — normalised score combination (dense + BM25 only)
+        # "pool"    — take top-K from each source independently and union them;
+        #             best used with a reranker to handle final ordering
+        "fusion": "rrf",
+        "rrf_k": 60,            # RRF smoothing constant (default 60)
+        # "alpha": 0.5,         # weighted only: vector weight (0.7 = 70% dense, 30% BM25)
+        # "overlap_boost": 1.2, # boost docs found by multiple methods (rrf/weighted only)
+        # pool only: candidates drawn from each source.
+        # Equal budget (int):   all sources get the same number of candidates.
+        # Weighted budget (dict): set per-source to control the mix.
+        #   e.g. {"dense": 30, "bm25": 10, "splade": 10} → 60/20/20 split over 50 candidates
+        # "pool_k_per_source": 20,
+        # "pool_k_per_source": {"dense": 30, "bm25": 10, "splade": 10},
+
+        # Optional: add SPLADE as a third source (works with "rrf" and "pool")
+        # "splade_index_path": "data/index/splade/splade_dutch_index.json",
+        # "splade_model": "sparse-encoder/splade-robbert-dutch-base-v1",
 
         # Vector search threshold
         "vector_threshold": 0.0,  # Minimum vector similarity score (0.0 = no threshold)
@@ -308,8 +350,10 @@ if __name__ == "__main__":
         "k1": 1.5,          # Term saturation (higher = more weight to repeated terms)
         "b": 0.75,           # Length normalization (0 = no penalty, 1 = strong penalty for long chunks)
 
-        # (initial) Retrieval
-        "top_k": 20,           # Retrieve 20 candidates -> use lower amount without reranker
+        # (initial) Retrieval — max candidates returned to the reranker.
+        # For fusion="pool", set this >= sum(pool_k_per_source) to avoid
+        # truncating the pool.  E.g. budgets {30, 10, 10} → top_k=50.
+        "top_k": 20,
 
         # Final Reranker filter
         "rerank": True,
