@@ -1,21 +1,8 @@
 # Dutch RAG Experimentation Toolkit
 
-A modular toolkit for experimenting with Retrieval-Augmented Generation (RAG) on **Dutch documents**. The goal is to systematically compare retrieval strategies — from simple keyword search to neural sparse retrieval and late-interaction reranking — and measure their effectiveness on Dutch-language queries using a curated evaluation framework.
+A modular toolkit for experimenting with Retrieval-Augmented Generation on **Dutch documents**. It provides a systematic way to compare retrieval strategies and measure their effectiveness on Dutch-language queries using a curated evaluation set and standard IR metrics (MRR, MAP, NDCG@k, Recall@k).
 
-The pipeline is structured around two retrieval stages:
-
-**Stage 1 — First-pass retrieval** narrows the corpus to a candidate set:
-- **Dense bi-encoder** — semantic vector search (HNSW / exhaustive KNN) using Dutch-tuned or multilingual embedding models
-- **Sparse: BM25** — classical TF-IDF keyword retrieval
-- **Sparse: SPLADE** — learned sparse neural retrieval with vocabulary expansion; Dutch and English variants
-- **Hybrid** — reciprocal rank fusion (RRF) of any sparse + dense pair
-
-**Stage 2 — Reranking** re-scores the candidate set for precision:
-- **Cross-encoder** — pointwise query-document scoring; fast and accurate
-- **Late-interaction (ColBERT)** — MaxSim token-level interaction; multiple variants including Dutch-tuned ModernColBERT models
-- **LLM reranker** — GPT-4o-mini scores and reasons over candidates; highest accuracy, highest cost
-
-Results across all configurations are benchmarked with standard IR metrics (MRR, MAP, NDCG@k, Recall@k) on a curated Dutch test set.
+Retrieval is structured as a two-stage pipeline: a **first-pass retriever** narrows the corpus to a candidate set, followed by an optional **reranker** that re-scores candidates for higher precision.
 
 ## Project Structure
 
@@ -67,6 +54,32 @@ Results across all configurations are benchmarked with standard IR metrics (MRR,
 ├── pyproject.toml              # Project config + dependencies (uv)
 ├── .env / .env.example
 ```
+
+## Retrieval Methods
+
+### Stage 1 — First-pass Retrieval
+
+| Method | Model | MRR | Notes |
+|--------|-------|-----|-------|
+| Dense — bi-encoder | `clips/e5-large-trm-nl` (Dutch, 1024-dim) | 0.85 | Best performing |
+| Dense — bi-encoder | `paraphrase-multilingual-MiniLM-L12-v2` (384-dim) | 0.47 | Fast baseline |
+| Sparse — SPLADE | `splade-robbert-dutch-base-v1` (Dutch) | 0.82 | Best sparse for Dutch |
+| Sparse — SPLADE | `splade-cocondenser-ensembledistil` (English) | 0.60 | English baseline |
+| Sparse — BM25 | — | 0.40 | TF-IDF keyword retrieval |
+| Hybrid — RRF | SPLADE-NL + E5-NL | 0.85 | Fuses two strong Dutch retrievers |
+
+Dense indexes support both HNSW (approximate, fast) and exhaustive KNN backends. Hybrid fusion supports RRF or weighted combination of any sparse + dense pair.
+
+### Stage 2 — Reranking
+
+| Reranker | Type | Speed | Notes |
+|----------|------|-------|-------|
+| Cross-Encoder | Pointwise scoring | ~2.5s | Best speed/accuracy balance |
+| ColBERT v2 | Late-interaction | ~4s | MaxSim token-level scoring |
+| Reason-ModernColBERT | Late-interaction | ~4s | Dutch ModernBERT backbone |
+| Agent-ModernColBERT | Late-interaction | ~4s | Dutch ModernBERT backbone |
+| Jina ColBERT v2 | Late-interaction | ~4s | Multilingual, 128-dim |
+| LLM (GPT-4o-mini) | Generative | ~40s | Highest accuracy, supports reasoning |
 
 ## Setup
 
@@ -120,52 +133,12 @@ This benchmarks all retrieval methods on the curated test set and reports:
 - Per-question-type breakdown (factual, paraphrase, multi-aspect)
 - Results saved to `data/eval_results/`
 
-### Stage 1 — First-pass Retrieval
+### Reranking
 
-#### Dense bi-encoder
-
-| Model | Dim | Language | MRR | Notes |
-|-------|-----|----------|-----|-------|
-| `clips/e5-large-trm-nl` | 1024 | Dutch | 0.85 | Best performing |
-| `paraphrase-multilingual-MiniLM-L12-v2` | 384 | Multilingual | 0.47 | Default, fast |
-
-Both models support HNSW (approximate, fast) and exhaustive KNN backends.
-
-#### Sparse: BM25
-
-| Method | MRR | Notes |
-|--------|-----|-------|
-| BM25 | 0.40 | TF-IDF keyword retrieval, no index build required |
-
-#### Sparse: SPLADE
-
-| Model | Language | MRR | Notes |
-|-------|----------|-----|-------|
-| `sparse-encoder/splade-robbert-dutch-base-v1` | Dutch | 0.82 | Best sparse model for Dutch |
-| `naver/splade-cocondenser-ensembledistil` | English | 0.60 | Default SPLADE |
-
-#### Hybrid fusion
-
-| Combination | MRR | Notes |
-|-------------|-----|-------|
-| SPLADE-NL + E5-NL (RRF) | 0.85 | Fusing two strong Dutch retrievers |
-| Any sparse + dense pair | varies | Configurable via RRF or weighted fusion |
-
-### Stage 2 — Reranking
-
-| Reranker | Type | Speed | MRR boost | Notes |
-|----------|------|-------|-----------|-------|
-| **Cross-Encoder** | Pointwise | Fast (~2.5s) | +moderate | Best speed/accuracy balance |
-| **ColBERT v2** | Late-interaction | Medium (~4s) | +moderate | MaxSim token scoring |
-| **Reason-ModernColBERT** | Late-interaction | Medium | +good | Dutch ModernBERT backbone |
-| **Agent-ModernColBERT** | Late-interaction | Medium | +good | Dutch ModernBERT backbone |
-| **Jina ColBERT v2** | Late-interaction | Medium | +moderate | Multilingual, 128-dim |
-| **LLM (GPT-4o-mini)** | Generative | Slow (~40s) | +excellent | Reasoning support, expensive |
-
-Configure reranking in run scripts via:
+Configure in any run script:
 ```python
 "rerank": True,
-"reranker_type": "cross_encoder",  # Options: "llm", "cross_encoder", "colbert"
+"reranker_type": "cross_encoder",  # "cross_encoder" | "colbert" | "llm"
 "rerank_top_n": 5,
 ```
 
