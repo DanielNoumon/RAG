@@ -45,7 +45,7 @@ def main(config):
         search_name = "HNSW (Approximate)"
     elif config["search_method"] == "exhaustive_knn":
         from core.vector_search_pipeline_knn import VectorSearchPipelineKNN
-        rag = VectorSearchPipelineKNN(storage_file="data/embeddings/embeddings_knn.json")
+        rag = VectorSearchPipelineKNN(storage_file="data/index/embeddings_knn.json")
         search_name = "Exhaustive KNN (Exact)"
     else:
         raise ValueError(f"Unknown search_method: {config['search_method']}. Use 'hnsw' or 'exhaustive_knn'.")
@@ -153,7 +153,7 @@ if __name__ == "__main__":
         "search_method": "hnsw",
 
         # RAG Parameters
-        "storage_file": "data/embeddings/embeddings_hnsw.json", # embedded chunks
+        "storage_file": "data/index/embeddings_hnsw.json",
         "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         "top_k": 20,          # Retrieve 20 candidates
         "show_chunks": False,

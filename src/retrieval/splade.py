@@ -232,7 +232,7 @@ class SPLADERetriever:
         Parameters
         ----------
         path : str
-            Destination file path (e.g. ``data/splade_index.json``).
+            Destination file path (e.g. ``data/index/splade_index.json``).
         """
         os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
         payload = {

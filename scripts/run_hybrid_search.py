@@ -292,7 +292,7 @@ if __name__ == "__main__":
     CONFIG = {
         # Data files
         "chunks_file": "data/chunks/.........json",
-        "embeddings_file": "data/embeddings/embeddings_hnsw.json",
+        "embeddings_file": "data/index/embeddings_hnsw.json",
         "vector_backend": "hnsw",  # "hnsw" = fast approximate search, "knn" = exact search (slower)
 
         # Fusion strategy

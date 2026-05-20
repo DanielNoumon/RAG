@@ -103,7 +103,7 @@ if __name__ == "__main__":
         "chunks_file": (
             "data/chunks/DSL_handboek_mei_2024_chunks.json"
         ),
-        "output_dir": "data/embeddings",
+        "output_dir": "data/index",
         "models": [
             {
                 "model_name": (

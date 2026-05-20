@@ -11,23 +11,21 @@ __pycache__/
 
 # Data (keep structure, ignore generated files)
 data/chunks/*.json
-data/embeddings/*.json
+data/index/
+!data/index/.gitkeep
+data/embeddings/
+data/splade/
 data/test_results/*.json
 data/eval_results/*.json
 data/test_sets/*.json
-data/splade/*.json
 data/documents/
 !data/documents/.gitkeep
 !data/chunks/.gitkeep
-!data/embeddings/.gitkeep
 !data/test_results/.gitkeep
 
 # OS
 .DS_Store
 Thumbs.db
-
-# HNSW index binary
-*.bin
 
 # ColBERT cached embeddings
 data/colbert/*.pkl

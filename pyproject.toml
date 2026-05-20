@@ -25,6 +25,7 @@ dependencies = [
     "pylate>=1.1.5",
     "voyager>=2.1.0",
     "sentencepiece>=0.2.1",
+    "einops>=0.8.2",
 ]
 
 [tool.setuptools]

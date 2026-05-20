@@ -1,6 +1,6 @@
-"""Reason-ModernColBERT reranker with pre-cached document embeddings.
+"""Agent-ModernColBERT reranker with pre-cached document embeddings.
 
-Uses lightonai/Reason-ModernColBERT (ModernBERT backbone + Dense 768→128
+Uses lightonai/Agent-ModernColBERT (ModernBERT backbone + Dense 768->128
 projection) with MaxSim scoring.  Document token embeddings are computed
 once and cached to disk; only the query is encoded at rerank time.
 
@@ -17,12 +17,14 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-DEFAULT_MODEL = "lightonai/Reason-ModernColBERT"
-DEFAULT_CACHE_PATH = "data/colbert/doc_embeddings.pkl"
+DEFAULT_MODEL = "lightonai/Agent-ModernColBERT"
+DEFAULT_CACHE_PATH = (
+    "data/colbert/agent_moderncolbert_doc_embeddings.pkl"
+)
 
 
-class ReasonColBERTReranker:
-    """Reranks retrieved chunks using Reason-ModernColBERT MaxSim.
+class AgentColBERTReranker:
+    """Reranks retrieved chunks using Agent-ModernColBERT MaxSim.
 
     Document embeddings are pre-computed (one array of shape
     ``(num_tokens, 128)`` per chunk) and stored as a pickle file.
@@ -44,18 +46,6 @@ class ReasonColBERTReranker:
         max_query_length: int = 128,
         batch_size: int = 4,
     ):
-        """Initialise the Reason-ModernColBERT reranker.
-
-        Args:
-            model_name: HuggingFace model identifier.
-            cache_path: Path to save/load pre-computed doc embeddings.
-            top_n: Default number of chunks to keep after reranking.
-            device: Torch device (``"cpu"``, ``"cuda"``).  ``None``
-                    for auto-detect.
-            max_doc_length: Max token length when encoding documents.
-            max_query_length: Max token length when encoding queries.
-            batch_size: Encoding batch size for document pre-encoding.
-        """
         self.model_name = model_name
         self.cache_path = cache_path
         self.top_n = top_n
@@ -70,14 +60,14 @@ class ReasonColBERTReranker:
         else:
             self.device = device
 
-        # chunk_id → np.ndarray (num_tokens, 128)
+        # chunk_id -> np.ndarray (num_tokens, 128)
         self._cache: Dict[str, np.ndarray] = {}
 
         self._load_model()
         self._load_cache()
 
         print(
-            f"Reason-ColBERT Reranker loaded: {model_name} "
+            f"Agent-ColBERT Reranker loaded: {model_name} "
             f"on {self.device}  "
             f"({len(self._cache)} cached doc embeddings)"
         )
@@ -101,7 +91,7 @@ class ReasonColBERTReranker:
         self._backbone.to(self.device)
         self._backbone.eval()
 
-        # Dense projection head (768 → 128, no bias)
+        # Dense projection head (768 -> 128, no bias)
         dense_cfg_file = hf_hub_download(
             self.model_name, "1_Dense/config.json"
         )
@@ -136,20 +126,16 @@ class ReasonColBERTReranker:
     # ----------------------------------------------------------
     def _load_cache(self) -> None:
         """Load cached document embeddings from disk (if exists)."""
-        if os.path.exists(self.cache_path):
-            with open(self.cache_path, "rb") as f:
-                raw = pickle.load(f)
-            if isinstance(raw, dict):
-                self._cache = {
-                    str(k): v for k, v in raw.items()
-                }
-            elif isinstance(raw, list):
-                # Legacy format (list of arrays, index-keyed)
-                self._cache = {
-                    str(i): v for i, v in enumerate(raw)
-                }
-            else:
-                self._cache = {}
+        if not os.path.exists(self.cache_path):
+            return
+
+        with open(self.cache_path, "rb") as f:
+            raw = pickle.load(f)
+
+        if isinstance(raw, dict):
+            self._cache = {str(k): v for k, v in raw.items()}
+        elif isinstance(raw, list):
+            self._cache = {str(i): v for i, v in enumerate(raw)}
 
     def _save_cache(self) -> None:
         os.makedirs(
@@ -163,17 +149,7 @@ class ReasonColBERTReranker:
         chunks: List[Dict[str, Any]],
         content_key: str = "content",
     ) -> None:
-        """Pre-encode documents and persist to disk.
-
-        Call this once after chunking to pre-compute all document
-        token embeddings.  Subsequent reranker calls will look up
-        embeddings from the cache instead of re-encoding.
-
-        Args:
-            chunks: List of chunk dicts (must have ``chunk_id``
-                    and *content_key*).
-            content_key: Key in each chunk dict holding the text.
-        """
+        """Pre-encode documents and persist to disk."""
         texts = [ch[content_key] for ch in chunks]
         ids = [str(ch["chunk_id"]) for ch in chunks]
         embeddings = self._encode(texts, is_query=False)
@@ -181,7 +157,7 @@ class ReasonColBERTReranker:
             self._cache[cid] = emb
         self._save_cache()
         print(
-            f"Reason-ColBERT: cached {len(ids)} doc embeddings "
+            f"Agent-ColBERT: cached {len(ids)} doc embeddings "
             f"-> {self.cache_path}"
         )
 
@@ -232,7 +208,6 @@ class ReasonColBERTReranker:
         cid = str(chunk.get("chunk_id", ""))
         if cid in self._cache:
             return self._cache[cid]
-        # Fallback: encode now (not cached)
         return self._encode(
             [chunk[content_key]], is_query=False
         )[0]
@@ -261,20 +236,7 @@ class ReasonColBERTReranker:
         verbose: bool = True,
         batch_size: int = 1,  # unused, kept for interface compat
     ) -> List[Dict[str, Any]]:
-        """Rerank chunks by Reason-ModernColBERT MaxSim score.
-
-        Args:
-            query: The user query.
-            chunks: Retrieved chunks; each dict must contain
-                    *content_key* (and ideally ``chunk_id``).
-            top_n: How many to keep (defaults to ``self.top_n``).
-            content_key: Key holding document text.
-            verbose: Whether to print progress.
-            batch_size: Unused (interface compatibility).
-
-        Returns:
-            Top-n chunks sorted descending by MaxSim score.
-        """
+        """Rerank chunks by Agent-ModernColBERT MaxSim score."""
         n = top_n or self.top_n
         if not chunks:
             return []
@@ -282,7 +244,7 @@ class ReasonColBERTReranker:
         if verbose:
             print(
                 f"Reranking {len(chunks)} chunks with "
-                f"Reason-ColBERT ({self.model_name})..."
+                f"Agent-ColBERT ({self.model_name})..."
             )
 
         q_emb = self._encode_query(query)
@@ -306,37 +268,3 @@ class ReasonColBERTReranker:
             )
 
         return scored[:n]
-
-
-if __name__ == "__main__":
-    # Demo: build cache from chunks, then rerank sample
-    import json as _json
-
-    CHUNKS_FILE = (
-        "data/chunks/DSL_handboek_mei_2024_chunks.json"
-    )
-
-    print("=== Reason-ColBERT Reranker Demo ===\n")
-    reranker = ReasonColBERTReranker()
-
-    # Build/refresh cache from the full chunk set
-    with open(CHUNKS_FILE, "r", encoding="utf-8") as f:
-        all_chunks = _json.load(f)["chunks"]
-    reranker.build_cache(all_chunks)
-
-    # Take a subset as "first-stage candidates"
-    candidates = all_chunks[:10]
-    query = "Hoeveel vakantiedagen krijg ik?"
-
-    print(f"\nQuery: {query}")
-    print(f"Candidates: {len(candidates)}")
-
-    results = reranker.rerank(query, candidates, top_n=5)
-    print("\n=== Top 5 after reranking ===")
-    for i, r in enumerate(results, 1):
-        print(
-            f"{i}. [ID:{r['chunk_id']}] "
-            f"Score: {r['rerank_score']:.4f} - "
-            f"{r['content'][:60]}..."
-        )
-    print("\n=== Demo Complete ===")

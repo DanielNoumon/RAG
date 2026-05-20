@@ -247,6 +247,65 @@ def main(config: Dict[str, Any]):
             rc, all_chunks, questions, k_values, top_n,
         )
 
+    # -- Agent-ModernColBERT --
+    if config.get("run_agent_moderncolbert", True):
+        from retrieval.rerankers.agent_colbert_reranker import (
+            AgentColBERTReranker,
+        )
+        print("=" * 60)
+        print("Evaluating: Agent-ModernColBERT")
+        print("=" * 60)
+        ac = AgentColBERTReranker(
+            model_name=config.get(
+                "agent_moderncolbert_model",
+                "lightonai/Agent-ModernColBERT",
+            ),
+            cache_path=config.get(
+                "agent_moderncolbert_cache",
+                "data/colbert/agent_moderncolbert_doc_embeddings.pkl",
+            ),
+            top_n=top_n,
+        )
+        if len(ac._cache) == 0:
+            print("  Cache empty — building now...")
+            ac.build_cache(all_chunks)
+        results_all["agent_moderncolbert"] = evaluate_reranker(
+            "Agent-ModernCB",
+            ac, all_chunks, questions, k_values, top_n,
+        )
+
+    # -- Jina ColBERT v2 --
+    if config.get("run_jina_colbert", True):
+        from retrieval.rerankers.jina_colbert_reranker import (
+            JinaColBERTReranker,
+        )
+        print("=" * 60)
+        print("Evaluating: Jina ColBERT v2")
+        print("=" * 60)
+        try:
+            jc = JinaColBERTReranker(
+                model_name=config.get(
+                    "jina_colbert_model",
+                    "jinaai/jina-colbert-v2",
+                ),
+                cache_path=config.get(
+                    "jina_colbert_cache",
+                    "data/colbert/jina_colbertv2_doc_embeddings.pkl",
+                ),
+                top_n=top_n,
+            )
+            if len(jc._cache) == 0:
+                print("  Cache empty — building now...")
+                jc.build_cache(all_chunks)
+            results_all["jina_colbert"] = evaluate_reranker(
+                "JinaColBERT v2",
+                jc, all_chunks, questions, k_values, top_n,
+            )
+        except Exception as exc:
+            print(f"  Jina ColBERT v2 failed: {exc}")
+            print("  Skipping -- continuing with "
+                  "remaining rerankers.")
+
     # -- LLM Reranker (Azure OpenAI) --
     if config.get("run_llm_reranker", False):
         from retrieval.rerankers.llm_reranker import Reranker
@@ -416,6 +475,8 @@ if __name__ == "__main__":
         "run_cross_encoder": True,
         "run_colbert": True,
         "run_reason_colbert": True,
+        "run_agent_moderncolbert": True,
+        "run_jina_colbert": True,
         "run_llm_reranker": True,
         "llm_reranker_model": "gpt5-nano",
 
@@ -424,6 +485,10 @@ if __name__ == "__main__":
         # "colbert_model": "...",
         # "reason_colbert_model": "...",
         # "reason_colbert_cache": "...",
+        # "agent_moderncolbert_model": "...",
+        # "agent_moderncolbert_cache": "...",
+        # "jina_colbert_model": "...",
+        # "jina_colbert_cache": "...",
 
         # Evaluation k values
         "k_values": [1, 3, 5, 10],
